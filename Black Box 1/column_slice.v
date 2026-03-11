@@ -7,7 +7,7 @@ module column_slice #(
   parameter integer LVC_MAG = 4,
   parameter integer LVC_W = 1 + LVC_MAG,
   parameter integer NFRAMES = 16,
-  parameter string MEM_TYPE = "BRAM" // "BRAM" or "ESRAM"
+  parameter string MEM_TYPE = "ESRAM" // "BRAM" or "ESRAM"
 )(
   input  wire                 clk,
   input  wire                 rst_n,
