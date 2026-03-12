@@ -68,14 +68,14 @@ begin
         // VN update writes Lvc
         //////////////////////////////////////////////////////
 
-        if(lvc_we)
+        if(!phase_cn && lvc_we)
             Lvc_mem[addr] <= lvc_in;
 
         //////////////////////////////////////////////////////
         // CN decision writes Cv
         //////////////////////////////////////////////////////
 
-        if(cv_we)
+        if(!phase_cn && cv_we)
             Cv_mem[addr] <= cv_in;
 
     end
