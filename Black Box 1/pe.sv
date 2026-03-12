@@ -1,7 +1,7 @@
 // pe.v
 // Single PE implementing piecewise time-distributed CN + VN update for one row of a column.
 // Implements OFFSET_BETA, saturating arithmetic, bypass support.
-`include "defs.v"
+import defs::*;
 module pe #(
   parameter integer QV_W = 5,
   parameter integer LVC_MAG = 4,

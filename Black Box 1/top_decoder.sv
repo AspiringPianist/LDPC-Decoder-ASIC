@@ -1,8 +1,10 @@
 // top_decoder.sv
 `timescale 1ns/1ps
-`include "defs.v"
+import defs::*;
 
-module top_decoder (
+module top_decoder #(
+  parameter int RATE_SELECT = 0
+)(
   input  wire clk,
   input  wire rst_n,
   input  wire start,
@@ -78,24 +80,26 @@ module top_decoder (
 
   genvar gc, gr;
   generate
-    for (gc = 0; gc < NUM_COLS; gc = gc + 1) begin : gen_router_col
-      for (gr = 0; gr < Z; gr = gr + 1) begin : gen_router_row
-        router #(
-          .NUM_COLS(NUM_COLS),
-          .Z(Z),
-          .NUM_LAYERS(NUM_LAYERS),
-          .RATE_SELECT(RATE_SELECT) // RATE_SELECT is a top-level parameter or set here
-        ) router_inst (
-          .from_col    (gc[$clog2(NUM_COLS)-1:0]),
-          .from_row    (gr[$clog2(Z)-1:0]),
-          .from_layer  (current_layer),
-          .to_row      (router_to_row[gc][gr]),
-          .active      (router_active[gc][gr]),
-          .inactive_layer(router_inactive[gc][gr])
-        );
-      end
+  for (gc = 0; gc < NUM_COLS; gc = gc + 1) begin : gen_router_col
+    localparam int col_id = gc;
+    for (gr = 0; gr < Z; gr = gr + 1) begin : gen_router_row
+      localparam int row_id = gr;
+      router #(
+        .NUM_COLS(NUM_COLS),
+        .Z(Z),
+        .NUM_LAYERS(NUM_LAYERS),
+        .RATE_SELECT(RATE_SELECT)
+      ) router_inst (
+        .from_col   (col_id[$clog2(NUM_COLS)-1:0]),
+        .from_row   (row_id[$clog2(Z)-1:0]),
+        .from_layer (current_layer),
+        .to_row     (router_to_row[col_id][row_id]),
+        .active     (router_active[col_id][row_id]),
+        .inactive_layer(router_inactive[col_id][row_id])
+      );
     end
-  endgenerate
+  end
+endgenerate
 
   // --- Combinational routing logic ---
   // For each column c and row r: route layer_bus_out_flat[c][r*MSG_W +: MSG_W]

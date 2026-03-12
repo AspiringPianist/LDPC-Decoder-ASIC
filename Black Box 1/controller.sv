@@ -1,5 +1,5 @@
 // controller.v
-`include "defs.v"
+import defs::*;
 module controller #(
   parameter integer NUM_COLS = 16,
   parameter integer NUM_FRAMES = 16

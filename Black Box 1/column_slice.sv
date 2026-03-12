@@ -1,5 +1,5 @@
 // column_slice.v
-`include "defs.v"
+import defs::*;
 module column_slice #(
   parameter integer COL_ID = 0,
   parameter integer Z = 42,
