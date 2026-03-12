@@ -80,12 +80,15 @@ module pe #(
   reg [LVC_W-1:0] lvc_next_sm;
   always @(*) begin
     integer imax = (1<<LVC_MAG) - 1;
+    reg [QV_W+MIN_W:0] abs_val;
     if (lvc_tmp < 0) begin
-      if ((-lvc_tmp) > imax) lvc_next_sm = {1'b1, imax[LVC_MAG-1:0]};
-      else lvc_next_sm = {1'b1, (-lvc_tmp)[LVC_MAG-1:0]};
+      abs_val = -lvc_tmp;
+      if (abs_val > imax) lvc_next_sm = {1'b1, imax[LVC_MAG-1:0]};
+      else lvc_next_sm = {1'b1, abs_val[LVC_MAG-1:0]};
     end else begin
-      if (lvc_tmp > imax) lvc_next_sm = {1'b0, imax[LVC_MAG-1:0]};
-      else lvc_next_sm = {1'b0, (lvc_tmp)[LVC_MAG-1:0]};
+      abs_val = lvc_tmp;
+      if (abs_val > imax) lvc_next_sm = {1'b0, imax[LVC_MAG-1:0]};
+      else lvc_next_sm = {1'b0, abs_val[LVC_MAG-1:0]};
     end
   end
 
