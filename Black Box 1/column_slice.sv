@@ -6,8 +6,7 @@ module column_slice #(
   parameter integer QV_W = 5,
   parameter integer LVC_MAG = 4,
   parameter integer LVC_W = 1 + LVC_MAG,
-  parameter integer NFRAMES = 16,
-  parameter string MEM_TYPE = "ESRAM" // "BRAM" or "ESRAM"
+  parameter integer NFRAMES = 16
 )(
   input  wire                 clk,
   input  wire                 rst_n,
@@ -32,26 +31,14 @@ module column_slice #(
       // linearized address = faddr_read * Z + r
       wire [ADDR_W-1:0] raddr = faddr_read * Z + r;
       wire [ADDR_W-1:0] waddr = faddr_read * Z + r;
-      // Qv memory
-      if (MEM_TYPE == "BRAM") begin
-        bram_wrapper #(.WIDTH(QV_W), .DEPTH(Z*NFRAMES), .ADDR_W(ADDR_W)) qv_mem (
-          .clk(clk), .raddr(raddr), .rdata(), .wen(), .waddr(waddr), .wdata()
-        );
-      end else begin
-        esram_wrapper #(.WIDTH(QV_W), .DEPTH(Z*NFRAMES), .ADDR_W(ADDR_W)) qv_mem (
-          .clk(clk), .raddr(raddr), .rdata(), .wen(), .waddr(waddr), .wdata()
-        );
-      end
-      // Lvc memory (LVC_W bits)
-      if (MEM_TYPE == "BRAM") begin
-        bram_wrapper #(.WIDTH(LVC_W), .DEPTH(Z*NFRAMES), .ADDR_W(ADDR_W)) lvc_mem (
-          .clk(clk), .raddr(raddr), .rdata(), .wen(), .waddr(waddr), .wdata()
-        );
-      end else begin
-        esram_wrapper #(.WIDTH(LVC_W), .DEPTH(Z*NFRAMES), .ADDR_W(ADDR_W)) lvc_mem (
-          .clk(clk), .raddr(raddr), .rdata(), .wen(), .waddr(waddr), .wdata()
-        );
-      end
+      // Qv memory (ESRAM)
+      esram_wrapper #(.WIDTH(QV_W), .DEPTH(Z*NFRAMES), .ADDR_W(ADDR_W)) qv_mem (
+        .clk(clk), .raddr(raddr), .rdata(), .wen(), .waddr(waddr), .wdata()
+      );
+      // Lvc memory (LVC_W bits, ESRAM)
+      esram_wrapper #(.WIDTH(LVC_W), .DEPTH(Z*NFRAMES), .ADDR_W(ADDR_W)) lvc_mem (
+        .clk(clk), .raddr(raddr), .rdata(), .wen(), .waddr(waddr), .wdata()
+      );
       // NOTE: For clarity and synthesis you should replace these per-row instances with a single multiported SRAM / BRAM per column.
     end
   endgenerate

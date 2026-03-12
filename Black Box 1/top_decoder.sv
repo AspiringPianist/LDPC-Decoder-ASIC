@@ -53,8 +53,7 @@ module top_decoder #(
         .QV_W(QV_W),
         .LVC_MAG(LVC_MAG),
         .LVC_W(LVC_W),
-        .NFRAMES(16),
-        .MEM_TYPE("BRAM")
+        .NFRAMES(16)
       ) cs (
         .clk(clk),
         .rst_n(rst_n),
