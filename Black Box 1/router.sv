@@ -10,12 +10,12 @@ module router #(
   parameter integer NUM_LAYERS = 8,
   parameter integer RATE_SELECT = 0
 )(
-  input  wire [$clog2(NUM_COLS)-1:0]   from_col,
-  input  wire [$clog2(Z)-1:0]          from_row,
-  input  wire [$clog2(NUM_LAYERS)-1:0] from_layer,
-  output reg  [$clog2(Z)-1:0]          to_row,
-  output reg                           active,
-  output reg                           inactive_layer
+  input  logic [$clog2(NUM_COLS)-1:0]   from_col,
+  input  logic [$clog2(Z)-1:0]          from_row,
+  input  logic [$clog2(NUM_LAYERS)-1:0] from_layer,
+  output logic [$clog2(Z)-1:0]          to_row,
+  output logic active,
+  output logic inactive_layer
 );
 
   // --------------------------
@@ -106,7 +106,7 @@ module router #(
 
   // Select the proper table and compute mapping
   integer s;
-  always @(*) begin
+  always_comb begin
     inactive_layer = 1'b0;
     active = 1'b0;
     to_row = from_row;

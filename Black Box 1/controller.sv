@@ -1,5 +1,8 @@
-// controller.v
-import defs::*;
+// controller.sv
+// NOTE: This module is currently unused. global_control.sv is the active control module.
+// Kept for reference/alternative implementation.
+`timescale 1ns/1ps
+import defs_pkg::*;
 module controller #(
   parameter integer NUM_COLS = 16,
   parameter integer NUM_FRAMES = 16
