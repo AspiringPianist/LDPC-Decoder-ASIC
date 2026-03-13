@@ -7,7 +7,8 @@ module column_slice #(
   parameter int QV_W_local = QV_W,
   parameter int LVC_MAG_local = LVC_MAG,
   parameter int LVC_W_local = LVC_W,
-  parameter int NFRAMES = NUM_FRAMES
+  parameter int NUM_QV_FRAMES_local = NUM_QV_FRAMES,
+  parameter int NUM_LVC_FRAMES_local = NUM_LVC_FRAMES
 )(
   input  logic clk,
   input  logic rst_n,
@@ -27,8 +28,10 @@ module column_slice #(
   logic [$clog2(NUM_LAYERS)-1:0] layer_id;
   assign layer_id = phase_cn_local ? cycle_idx[$clog2(NUM_LAYERS)-1:0] : (cycle_idx - NUM_LAYERS)[$clog2(NUM_LAYERS)-1:0];
 
-  // Per-row banked memories: each bank depth = NFRAMES, address = frame index (faddr_read).
-  // QV and LVC bank arrays:
+  // Per-row banked memories: QV depth = NUM_QV_FRAMES (16), LVC depth = NUM_LVC_FRAMES (8)
+  // NOTE: faddr_read is currently shared address for both banks. Per paper architecture,
+  // QV and LVC use different frame indices. This simplified version uses same faddr for both;
+  // a full implementation would provide separate address buses (faddr_qv and faddr_lvc).
   logic [QV_W_local-1:0] qv_rdata_row [0:Z_local-1];
   logic [LVC_W_local-1:0] lvc_rdata_row [0:Z_local-1];
   logic qv_wen_row  [0:Z_local-1];
@@ -39,8 +42,8 @@ module column_slice #(
   genvar r;
   generate
     for (r = 0; r < Z_local; r = r + 1) begin : per_row_bank
-      // instantiate a small behavioral memory (one bank per row)
-      esram_bram_sim #(.DEPTH(NFRAMES), .DATA_W(QV_W_local)) qv_bank (
+      // instantiate QV memory bank with depth = NUM_QV_FRAMES
+      esram_bram_sim #(.DEPTH(NUM_QV_FRAMES_local), .DATA_W(QV_W_local)) qv_bank (
         .clk(clk),
         .ren(1'b1),                 // always enabled read; rdata will reflect raddr which is frame index
         .raddr(faddr_read),
@@ -50,7 +53,8 @@ module column_slice #(
         .wdata(qv_wdata_row[r])
       );
 
-      esram_bram_sim #(.DEPTH(NFRAMES), .DATA_W(LVC_W_local)) lvc_bank (
+      // instantiate LVC memory bank with depth = NUM_LVC_FRAMES
+      esram_bram_sim #(.DEPTH(NUM_LVC_FRAMES_local), .DATA_W(LVC_W_local)) lvc_bank (
         .clk(clk),
         .ren(1'b1),
         .raddr(faddr_read),
@@ -88,20 +92,24 @@ module column_slice #(
       // NOTE: in the paper, bypass means forward same-row message; inactive means layer absent (no routing).
 
       // instantiate PE
+      logic en_pe;
+      assign en_pe = en_slice && is_active;  // only enable PE when slice enabled and router says row is active
+      
       pe pe_inst (
         .clk(clk),
         .rst_n(rst_n),
         .phase_cn(phase_cn_local),
         .layer_id(layer_id),
+        .en(en_pe),
         .msg_in(in_msg[r]),
         .lvc_in(lvc_rdata_row[r]),
         .qv_in(qv_rdata_row[r]),
         .msg_out(pe_msg_out),
-        .parity_out(pe_parity_out),
-        .lvc_we(pe_lvc_we),
         .lvc_wdata(pe_lvc_wdata),
-        .qv_we(pe_qv_we),
-        .qv_wdata(pe_qv_wdata)
+        .lvc_wen(pe_lvc_we),
+        .qv_wdata(pe_qv_wdata),
+        .qv_wen(pe_qv_we),
+        .c_hat_out(pe_parity_out)
       );
 
       // Decide final msg_out depending on bypass / inactive / active

@@ -41,6 +41,9 @@ module top_decoder_synth #(
   wire [Z*MSG_W-1:0] layer_bus_out_flat [NUM_COLS-1:0];
   wire [Z*MSG_W-1:0] layer_bus_in_flat  [NUM_COLS-1:0];
 
+  // parity bits from each column
+  wire [NUM_COLS-1:0][Z-1:0] all_parity_bits;
+
   // router arrays: to_row, active, inactive
   logic [$clog2(Z)-1:0] router_to_row [NUM_COLS-1:0][Z-1:0];
   logic router_active   [NUM_COLS-1:0][Z-1:0];
@@ -84,7 +87,8 @@ module top_decoder_synth #(
         .QV_W_local(QV_W),
         .LVC_MAG_local(LVC_MAG),
         .LVC_W_local(LVC_W),
-        .NFRAMES(NUM_FRAMES)
+        .NUM_QV_FRAMES_local(NUM_QV_FRAMES),
+        .NUM_LVC_FRAMES_local(NUM_LVC_FRAMES)
       ) cs (
         .clk(clk),
         .rst_n(rst_n),
@@ -95,7 +99,7 @@ module top_decoder_synth #(
         .out_layer_bus(layer_bus_out_flat[c]),
         .router_active_vec(router_active_vec),
         .router_inactive_vec(router_inactive_vec),
-        .parity_bits_out() // will be connected below for start column
+        .parity_bits_out(all_parity_bits[c])
       );
     end
   endgenerate
@@ -125,11 +129,14 @@ module top_decoder_synth #(
 
   // Parity checker hookup: choose START_COL (paper denotes start col; we choose 0)
   localparam int START_COL = 0;
-  // tie to the parity_bits_out of the instantiated slice: generated block name is gen_cols[START_COL].cs
   wire [Z-1:0] start_parity_bits;
-  assign start_parity_bits = gen_cols[START_COL].cs.parity_bits_out;
+  assign start_parity_bits = all_parity_bits[START_COL];
 
-  parity_checker #(.Z_p(Z), .NUM_FRAMES_p(NUM_FRAMES)) pchk (
+  parity_checker #(
+    .NUM_COLS(NUM_COLS),
+    .Z(Z),
+    .NUM_FRAMES(NUM_FRAMES)
+  ) pchk (
     .clk(clk),
     .rst_n(rst_n),
     .parity_in(start_parity_bits),

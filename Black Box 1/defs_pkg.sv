@@ -4,7 +4,11 @@ package defs_pkg;
   parameter int NUM_COLS   = 16;  // macrocolumns / column slices
   parameter int Z          = 42;  // QC submatrix size (rows per column slice)
   parameter int NUM_LAYERS = 8;   // base layers
-  parameter int NUM_FRAMES = 8;   // frame interleave depth (set to 8 to match Fig.7)
+  parameter int NUM_FRAMES = 8;   // legacy frame count (maintained for compatibility)
+  
+  // Separate memory depths to match paper architecture
+  parameter int NUM_QV_FRAMES   = 16; // Qv (channel LLR input buffer) depth = 16 frames
+  parameter int NUM_LVC_FRAMES  = 8;  // Lvc (stored VN->CN messages) depth = 8 frames
 
   // Widths / quantization (tune to paper's numeric choices as required)
   parameter int MIN_W      = 4;   // bits for min magnitudes
