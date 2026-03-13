@@ -1,97 +1,95 @@
-
 module BB2
 #(
-    parameter FRAMES = 8,
-    parameter SLICES = 8,
-    parameter VN = 42,
-    parameter LAYERS = 4,
+    parameter Z = 42,
+    parameter FRAMES = 16,
     parameter LLR_W = 5
 )
 (
     input clk,
     input rst,
 
-    // phase control
-    input vn_phase,
+    // control from BB3
+    input phase_cn,
+    input [$clog2(Z*FRAMES)-1:0] addr,
 
-    // clock gating enables
-    input lvc_en,
-    input cv_en,
-    input qv_en,
-
-    // addressing
-    input [$clog2(FRAMES)-1:0] frame_id,
-    input [$clog2(SLICES)-1:0] slice_id,
-    input [$clog2(VN)-1:0] vn_id,
-    input [$clog2(LAYERS)-1:0] layer_id,
-
-    // from BB1
-    input [LLR_W-1:0] lvc_in,
-    input [LLR_W-1:0] cv_in,
-
-    // channel LLR input
+    // channel LLR load
     input qv_load,
-    input [LLR_W-1:0] qv_in,
+    input [LLR_W-1:0] qv_channel,
+
+    // writes from BB1
+    input lvc_we,
+    input [LLR_W-1:0] lvc_in,
+
+    input cv_we,
+    input cv_in,
 
     // outputs to BB1
+    output reg [LLR_W-1:0] qv_out,
     output reg [LLR_W-1:0] lvc_out,
-    output reg [LLR_W-1:0] cv_out,
-    output reg [LLR_W-1:0] qv_out
+    output reg cv_out
 );
 
-reg [LLR_W-1:0] Qv_mem
-    [0:FRAMES-1][0:SLICES-1][0:VN-1];
+//////////////////////////////////////////////////////////////
+// Column-Slice Local Memories
+//////////////////////////////////////////////////////////////
 
-reg [LLR_W-1:0] Lvc_mem
-    [0:FRAMES-1][0:SLICES-1][0:VN-1][0:LAYERS-1];
+reg [LLR_W-1:0] Qv_mem  [0:FRAMES*Z-1];   // Channel LLR
+reg [LLR_W-1:0] Lvc_mem [0:FRAMES*Z-1];   // VN→CN messages
+reg             Cv_mem  [0:FRAMES*Z-1];   // Hard decision
 
-reg [LLR_W-1:0] Cv_mem
-    [0:FRAMES-1][0:SLICES-1][0:VN-1][0:LAYERS-1];
+integer i;
 
-integer f,s,v,l;
+//////////////////////////////////////////////////////////////
+// Reset initialization
+//////////////////////////////////////////////////////////////
 
 always @(posedge clk)
 begin
     if(rst)
     begin
-        for(f=0;f<FRAMES;f=f+1)
-        for(s=0;s<SLICES;s=s+1)
-        for(v=0;v<VN;v=v+1)
+        for(i=0;i<FRAMES*Z;i=i+1)
         begin
-            Qv_mem[f][s][v] <= 0;
-
-            for(l=0;l<LAYERS;l=l+1)
-            begin
-                Lvc_mem[f][s][v][l] <= 0;
-                Cv_mem[f][s][v][l]  <= 0;
-            end
+            Qv_mem[i]  <= 0;
+            Lvc_mem[i] <= 0;
+            Cv_mem[i]  <= 0;
         end
     end
     else
     begin
 
-        // Qv update only from IO
-        if(vn_phase && qv_en)
-            Qv_mem[frame_id][slice_id][vn_id] <= qv_in;
+        //////////////////////////////////////////////////////
+        // Channel LLR initialization
+        //////////////////////////////////////////////////////
 
-        // Lvc write from BB1
-        if(vn_phase && lvc_en)
-            Lvc_mem[frame_id][slice_id][vn_id][layer_id] <= lvc_in;
+        if(qv_load)
+            Qv_mem[addr] <= qv_channel;
 
-        // Cv write from BB1
-        if(vn_phase && cv_en)
-            Cv_mem[frame_id][slice_id][vn_id][layer_id] <= cv_in;
+        //////////////////////////////////////////////////////
+        // VN update writes Lvc
+        //////////////////////////////////////////////////////
+
+        if(!phase_cn && lvc_we)
+            Lvc_mem[addr] <= lvc_in;
+
+        //////////////////////////////////////////////////////
+        // CN decision writes Cv
+        //////////////////////////////////////////////////////
+
+        if(!phase_cn && cv_we)
+            Cv_mem[addr] <= cv_in;
 
     end
 end
 
+//////////////////////////////////////////////////////////////
+// Memory reads to BB1 compute fabric
+//////////////////////////////////////////////////////////////
 
 always @(posedge clk)
 begin
-    qv_out  <= Qv_mem [frame_id][slice_id][vn_id];
-    lvc_out <= Lvc_mem[frame_id][slice_id][vn_id][layer_id];
-    cv_out  <= Cv_mem [frame_id][slice_id][vn_id][layer_id];
+    qv_out  <= Qv_mem[addr];
+    lvc_out <= Lvc_mem[addr];
+    cv_out  <= Cv_mem[addr];
 end
 
 endmodule
-
