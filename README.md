@@ -99,11 +99,6 @@ This is "path-unrolled" because a full CN update is not done in one monolithic C
 - [clock_gate_stub.sv](clock_gate_stub.sv)
 	- Simple AND-based sim gate; replace with library-integrated ICG for real synthesis/signoff.
 
-### 4.3 Legacy/Reference
-
-- [controller.sv](controller.sv)
-	- Marked as unused in comments; [global_control.sv](global_control.sv) is the active control path.
-
 ## 5. Parameters and Numeric Formats
 
 Main architectural/package parameters are in [defs_pkg.sv](defs_pkg.sv):
