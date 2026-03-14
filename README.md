@@ -174,51 +174,70 @@ At current package defaults, modeled storage is:
 
 This includes simulation-model storage and is not a direct one-to-one replica of the silicon macro budgeting in the reference paper.
 
-## 9. Verification
+## 9. Simulation Guide
 
-Testbenches are located under [testbench](testbench):
+This section provides commands to compile and simulate the SystemVerilog testbenches using Icarus Verilog (`iverilog`) and inspect waveforms in GTKWave.
 
-- [testbench/tb_pe.sv](testbench/tb_pe.sv)
-	- Unit-level checks for CN and VN arithmetic behavior.
-- [testbench/tb_column_slice.sv](testbench/tb_column_slice.sv)
-	- Slice-level active/bypass/inactive path behavior.
-- [testbench/tb_top_decoder.sv](testbench/tb_top_decoder.sv)
-	- Integration-level bring-up across all 4 rate profiles.
+### Prerequisites
 
-### Example Icarus Verilog Commands
+Ensure the following tools are installed:
 
-Create output directory (PowerShell):
+- Icarus Verilog
+- GTKWave
 
-```powershell
-New-Item -ItemType Directory -Force sim | Out-Null
+All commands below assume your terminal is opened at the project root.
+
+### 9.1 Run the Top-Level Decoder Testbench (`tb_top_decoder.sv`)
+
+This testbench integrates all major components and runs across all four IEEE 802.11ad rate profiles.
+
+Step 1: Compile design + top testbench
+
+```bash
+iverilog -g2012 -o tb_top_decoder.vvp defs_pkg.sv clock_gate_stub.sv esram_macro_stub.sv esram_bram_sim.sv parity_checker.sv pe.sv router.sv global_control.sv controller.sv column_slice.sv top_decoder_synth.sv testbench/tb_top_decoder.sv
 ```
 
-Run PE testbench:
+Step 2: Run simulation
 
-```powershell
-iverilog -g2012 -o sim/tb_pe.out defs_pkg.sv pe.sv testbench/tb_pe.sv
-vvp sim/tb_pe.out
+```bash
+vvp tb_top_decoder.vvp
 ```
 
-Run column slice testbench:
+Step 3: View waveforms
 
-```powershell
-iverilog -g2012 -o sim/tb_column_slice.out defs_pkg.sv esram_bram_sim.sv pe.sv column_slice.sv testbench/tb_column_slice.sv
-vvp sim/tb_column_slice.out
-```
-
-Run top-level integration testbench:
-
-```powershell
-iverilog -g2012 -o sim/tb_top_decoder.out defs_pkg.sv clock_gate_stub.sv esram_bram_sim.sv router.sv pe.sv column_slice.sv global_control.sv parity_checker.sv top_decoder_synth.sv testbench/tb_top_decoder.sv
-vvp sim/tb_top_decoder.out
-```
-
-Optional waveform view (`.vcd` emitted by top testbench):
-
-```powershell
+```bash
 gtkwave tb_top_decoder.vcd
 ```
+
+### 9.2 Run Component-Level Testbenches
+
+Use these if you want to isolate specific blocks.
+
+#### A) Processing Element (PE) Testbench
+
+```bash
+# Compile
+iverilog -g2012 -o tb_pe.vvp defs_pkg.sv pe.sv testbench/tb_pe.sv
+
+# Run
+vvp tb_pe.vvp
+```
+
+#### B) Column Slice Testbench
+
+```bash
+# Compile
+iverilog -g2012 -o tb_column_slice.vvp defs_pkg.sv clock_gate_stub.sv esram_macro_stub.sv esram_bram_sim.sv pe.sv controller.sv column_slice.sv testbench/tb_column_slice.sv
+
+# Run
+vvp tb_column_slice.vvp
+```
+
+### 9.3 Troubleshooting
+
+- If you see errors around `import defs_pkg::*`, ensure `defs_pkg.sv` is listed first in the compile file list.
+- If `logic`, `always_comb`, or package syntax is rejected, ensure `-g2012` is present.
+- If GTKWave opens with no activity, confirm the simulation generated `tb_top_decoder.vcd` in your current directory.
 
 ## 10. Repository Layout
 
