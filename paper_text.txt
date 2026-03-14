@@ -1,0 +1,1106 @@
+1908 IEEE TRANSACTIONS ON VERY LARGE SCALE INTEGRATION (VLSI) SYSTEMS, VOL. 26, NO. 10, OCTOBER 2018
+A Multi-Gb/s Frame-Interleaved LDPC Decoder With
+Path-Unrolled Message Passing in 28-nm CMOS
+Mario Milicevic , Member, IEEE, and P. Glenn Gulak, Senior Member, IEEE
+Abstract— This paper presents a frame-interleaved low-density
+parity-check (LDPC) decoder architecture with a new intercon-
+nect partitioning scheme and time-distributed Min-Sum decoding
+schedule. The architecture exploits the cyclic structure of the
+parity-check matrix by unrolling each check node update in
+time over all connected variable nodes in order to minimize
+wiring complexity and power. Multiple frames are interleaved to
+maximize hardware utilization, while coarse-grained clock gating
+is used to systematically turn off inactive logic and memories
+to save power. To demonstrate the scalability of the proposed
+architecture, a multirate LDPC decoder test chip was fabricated
+for the IEEE 802.11ad standard in the 28-nm CMOS technology
+node. The design occupies an area of 1.99 mm
+2, contains 160 Kb
+of embedded static random-access memory, and achieves a
+throughput of 6.78 Gb/s at 10 decoding iterations for all four code
+rates speciﬁed in the standard. With early decoding termination,
+the fabricated chip consumes between 104 and 279 mW of power
+at a target bit error rate of 10
+−6 under nominal operation at
+0.9-V supply and 202-MHz clock rate, resulting in an energy
+efﬁciency between 1.53 and 4.12 pJ/bit/iteration. With clock-
+frequency and voltage scaling, the fabricated chip achieves an
+energy efﬁciency between 1.1 and 3.1 pJ/bit/iteration. This paper
+achieves the highest normalized energy efﬁciency among recently
+published CMOS-based decoders for the IEEE 802.11ad standard
+at nominal clock frequency and supply voltage.
+Index Terms — IEEE 802.11ad, low-complexity interconnect,
+low-density parity-check (LDPC), LDPC decoder, Min-Sum,
+multi-Gb/s, pipeline frame interleaved, quasi-cyclic (QC).
+I. I NTRODUCTION
+L
+OW-DENSITY parity-check (LDPC) codes have been
+widely adopted over the past 15 years for forward error
+correction (FEC) in wireless, wireline, optical, and non-
+volatile memory systems due to their near-Shannon limit error-
+correction performance and the absence of patent licensing
+fees [1]–[4]. Their adoption in modern standards, such as
+Manuscript received December 3, 2017; revised March 28, 2018; accepted
+May 7, 2018. Date of publication June 14, 2018; date of current version
+September 25, 2018. This work was supported in part by MaxLinear Inc.,
+CA, USA, in part by the Natural Scien ce and Engineering Research Council
+of Canada, and in part by the Canadia n Microelectronics Corporation. (Cor-
+responding author: Mario Milicevic.)
+M. Milicevic was with the Department of Electrical and Computer
+Engineering, University of Toronto, Toronto, ON M5S 3G4, Canada.
+He is now with MaxLinear Inc., Irvine, CA 92618 USA (e-mail:
+mario.milicevic@utoronto.ca).
+P. G. Gulak is with the Department of Electrical and Computer Engi-
+neering, University of Toronto, Toronto, ON M5S 3G4, Canada (e-mail:
+gulak@eecg.toronto.edu).
+Color versions of one or more of the ﬁgures in this paper are available
+online at http://ieeexplore.ieee.org.
+Digital Object Identiﬁer 10.1109/TVLSI.2018.2838591
+IEEE 802.11ac (Wi-Fi), was predominantly enabled through
+the introduction of hardware-friendly variants of the belief
+propagation decoding algorithm [5], hardware-oriented codes,
+and integrated circuit decoder a rchitectures capable of deliv-
+ering multi-Gb/s throughput at low power. Today, the two
+key design constraints of LDPC decoders are: energy efﬁ-
+ciency and system-on-chip (SoC) integration capability. The
+scalability of LDPC decoders is primarily limited by the
+complexity of message-passing interconnect between on-chip
+memory and parallel processing units [6], [7]. Due to the
+recent stagnation of wired inte rconnect scaling beyond the
+45-nm CMOS technology node, unstructured routing now
+largely dominates overall power consumption [8], [9].
+A practical design constraint of an LDPC decoder is the
+SoC integration capability of the intellectual property (IP) core
+alongside other signal processing blocks in a digital baseband
+implemented in a modern bulk CMOS technology. While clock
+frequencies in excess of 500 MHz are achievable in digital
+blocks in sub 28-nm CMOS technology nodes, the digital
+baseband in most production-level, industry-grade, communi-
+cations/networking SoCs typically operates at clock frequen-
+cies in the 200–300-MHz range to meet timing constraints
+across process, voltage, and temperature (PVT) corners [10].
+As such, the clock frequency of the LDPC decoder should real-
+istically be constrained to be around 200 MHz. Under this con-
+dition, achieving multi-Gb/s throughput is a challenge using
+traditional architectural and scheduling techniques [11], [12],
+especially for short block-length codes such as those deﬁned
+in the IEEE 802.11ad (WiGig) standard [13]. While multiple
+low-throughput LDPC decoders can be instantiated in parallel
+to achieve multi-Gb/s throughput, their aggregate power may
+exceed the FEC power budget in an industry-grade SoC.
+The motivation of this paper is to address the high
+power consumption of unstructured interconnect in multi-
+Gb/s decoders by exploiting the structure of LDPC parity-
+check matrices to reduce wiring complexity through new
+architectural techniques that scale to sub-10-nm CMOS tech-
+nology nodes. This paper investigates a new multi-Gb/s LDPC
+decoder architecture, which l everages the low cost of tran-
+sistor area for a single IP block relative to the overall SoC,
+when implemented in a modern CMOS technology node. The
+proposed architecture is scalable by design and is based on
+dark silicon design principles [14], where a high transistor
+area offers high computational parallelism at a low clock rate
+to maximize throughput (when required), while systematic
+clock gating turns off inactive logic to minimize switching
+power.
+1063-8210 © 2018 I EEE. Personal u se is perm itted, but republication/redistribution requires IEEE permission.
+See http://www.ieee.org/publications_standards/publications/rights/index.html for more information.
+Authorized licensed use limited to: International Institute of Information Technology Bangalore. Downloaded on February 07,2026 at 07:05:32 UTC from IEEE Xplore.  Restrictions apply. MILICEVIC AND GULAK: MULTI-Gb/s FRAME-INTERLEA VED LDPC DECODER WITH PATH-UNROLLED MESSAGE PASSING IN 28-nm CMOS 1909
+Fig. 1. Tanner graph and corresponding parity-check matrix H with block
+length of n = 6 bits, k = 3 information bits, n = 6 VNs, and (n− k) = 3C N s .
+CNs and VNs correspond to the rows and columns of H, respectively.
+This paper presents a new, frame-interleaved LDPC decoder
+architecture, where long interconnect wires are split into mul-
+tiple shorter segments through a reformulated message-passing
+schedule to reduce interconnect delay and routing logic over-
+head, by exploiting the spatial locality of stored messages
+in neighboring processing nodes. The architecture supports
+multiple code rates and achie ves multi-Gb/s throughput while
+operating at clock rates below 200 MHz. The IEEE 802.11ad
+standard for the 60-GHz millimeter-wave band is used as
+a vehicle to demonstrate the application of the proposed
+architecture, due to its multi- Gb/s throughput sp eciﬁcation
+over four code rates, and quasi-cyclic (QC) LDPC parity-check
+matrix structure [13]. A proof-of-concept application-speciﬁc
+integrated circuit (ASIC) was fabricated in a 28-nm CMOS
+technology and tested at-speed on a commercial SoC tester.
+The LDPC decoder achieves a throughput of 6.78 Gb/s with
+a normalized energy efﬁciency of 1.53 pJ/bit/iteration for the
+rate 13/16 code, and 4.12 pJ/bit/iteration for the rate 1/2 code,
+while operating at a 0.9-V supply and 202-MHz clock rate.
+The remainder of this paper is organized as follows.
+Section II provides a background on LDPC decoding and out-
+lines challenges in traditional decoder architectures. Section III
+introduces the frame-interle aved architecture with a path-
+unrolled message-passing schedule. Section IV presents the
+silicon chip results and comparison to other published works.
+II. B ACKGROUND
+LDPC codes are a class of linear block codes deﬁned by a
+sparse parity-check matrix H of size (n − k) × n, with block
+length n and code rate Rcode = k/n [2], [15]. As shown
+in Fig. 1, an LDPC code is equivalently deﬁned by its Tanner
+graph, where the nonzero entries of the binary parity-check
+matrix H deﬁne the edge connecti ons between independent
+vertex sets known as check nodes (CNs) and variable nodes
+(VNs) [16]. LDPC decoding produces an estimate ˆC of an
+LDPC-encoded codeword C that was transmitted over a noisy
+channel, and is considered successful if ˆC = C.
+A. LDPC Decoding: Belief Propagation
+LDPC decoding is performed via belief propagation, an iter-
+ative message-passing algorithm, which attempts to converge
+on a valid codeword by iteratively exchanging updates between
+CNs and VNs until a valid codeword is found, or the max-
+imum number of iterations is exhausted [17]. The Min-Sum
+algorithm has been adopted as a suitable approximation to the
+traditional Sum-Product algorithm, as it can be computed with
+simple comparator circuits [6], [15].
+Algorithm 1 Min-Sum Decoding With Flooding Schedule
+Algorithm 1 describes the Min-Sum decoding procedure
+with a ﬂooding schedule, where CNs and VNs pass message
+updates between their connected neighbors once per iteration
+to generate a codeword estimate ˆC. The channel is assumed
+to be a binary-input additive white Gaussian noise channel
+(BIAWGNC) with zero mean and noise variance σ2, y is
+the received soft-decision vector of length n, Qv is the log-
+likelihood ratio (LLR) input value at VN v, mcv is the message
+from CN c to VN v,a n dLvc is the message from VN v to CN
+c. The set of VNs connected to CN c is deﬁned as N(c) =
+{v|v ∈{ 1, 2,..., n}∧ Hcv = 1},w h e r ev′ ∈ N(c)\v denotes
+all VNs in N(c) excluding VN v. The set of CNs connected to
+VN v is deﬁned as M(v) ={ c|c ∈{ 1, 2,..., n− k}∧ Hcv = 1},
+where c′ ∈ M(v)\c refers to all CNs in M(v) excluding CN
+c. The syndrome ˆCH⊤ = 0 if the parity check pc = 0 at each
+CN c,w h e r epc is the XOR of all hard decision ˆCv bits from
+VNs connected to CN c in the set N(c):
+pc ← ˆCN(c)1 ⊕ ˆCN(c)2 ⊕···⊕ ˆCN(c)|N(c)| =⊕
+v∈N(c)
+ˆCv. (1)
+The Normalized and Offset Min-Sum algorithms offer
+improvements in the bit error rate (BER) performance over
+the traditional Min-Sum algorithm by introducing scaling and
+offset factors, respectively [18]. However, these parameters are
+strongly dependent on the channel signal-to-noise ratio (SNR),
+code rate, and ﬁxed-point message quantization. To avoid BER
+degradation, these parameters should be adjusted dynamically
+during runtime to compensate for changes in SNR or code
+rate. Such enhancements are beyond the scope of this paper.
+B. Quasi-Cyclic LDPC Codes
+Quasi-Cyclic LDPC codes are a class of architecture-aware
+codes, where the parity-check matrix is constructed from an
+array of q×q cyclically-shifted identity matrices or q×q zero
+matrices to reduce decoder implementation complexity [19],
+[20]. The tilings evenly divide the H matrix into n/q QC
+macrocolumns and (n − k)/q QC macrorows. QC matrices
+have a highly regular structure, which can be exploited to
+simplify decoder architecture design.
+Authorized licensed use limited to: International Institute of Information Technology Bangalore. Downloaded on February 07,2026 at 07:05:32 UTC from IEEE Xplore.  Restrictions apply. 1910 IEEE TRANSACTIONS ON VERY LARGE SCALE INTEGRATION (VLSI) SYSTEMS, VOL. 26, NO. 10, OCTOBER 2018
+C. LDPC Decoder Architectures
+LDPC decoder architectures can be classiﬁed into the fol-
+lowing three categories based on their degree of computa-
+tional parallelism: fully parallel, partially parallel, or serial.
+Fully-parallel decoders achieve the highest throughput, but
+suffer from high power consumption and a large silicon area
+due to the large number of parallel processors, complex
+reconﬁgurable networks, and wired interconnect [21]–[23].
+Partially-parallel decoder arch itectures achieve higher energy
+efﬁciency and area efﬁciency at the expense of lower through-
+put, as message updates are computed in a time-multiplexed
+approach, and barrel shifters are typically used to perform
+cyclic data rotation [19], [24]. Serial architectures implement
+a single processing unit with large memory and are suitable
+only for low-throughput applications, where high latency is
+acceptable [25].
+D. Flooding and Layered Decoding Schedules
+LDPC decoders execute the belief propagation algorithm
+based on either a ﬂooding or layered message-passing sched-
+ule [23]. In the ﬂooding schedule, CNs and VNs perform
+subsequent rounds of updates and pass messages between
+their connected neighbors once per iteration [23]. Flooding
+decoders achieve high throughput with low latency at the
+expense of area and routing complexity [26]. The layered
+schedule improves decoder convergence by performing inter-
+mediate LLR updates in each iteration [27]. While the lay-
+ered schedule generally requires fewer iterations, the overall
+decoding latency may be longer a s additional clock cycles are
+required to perform intermediate LLR updates. These succes-
+sive message updates can also lead to dynamic range clip-
+ping/saturation, which reduces e rror-correction performance if
+scaling circuits are not employ ed. Moreover, the data depen-
+dence among layers causes memory access contention [11],
+[28], [29]. Layered decoders require higher clock rates to
+achieve multi-Gb/s throughput and more complex permutation
+network control. As such, the layered schedule is not optimal
+for a multi-Gb/s decoder with a target clock rate of 200 MHz.
+E. Energy-Efﬁciency Challenges in CMOS-Based Decoders
+Reducing interconnect congestion and minimizing reconﬁg-
+urable routing logic are key challenges in improving decoder
+energy efﬁciency. The split-row technique reduces the silicon
+area and routing congestion in fully parallel decoders [6], but is
+suitable only for single-rate codes with high row weights. The
+half-row decoding schedule folds the traditional layered sched-
+ule computations in time to reduce interconnect wiring [30],
+but suffers in throughput and introduces more complex data
+shufﬂing circuits. Memory-based decoders enable frame-level
+pipelining with shorter routing wires [31], while row-merging
+techniques can be applied to improve decoding throughput
+with reconﬁgurable routing logic overhead [32].
+Refresh-free dynamic memory implementations have been
+proposed to reduce memory power. Transistor-based embed-
+ded dynamic random-access memory (eDRAM) can be used
+without special process requirements [33]; however, the higher
+supply voltage of eDRAM increases SoC design complexity.
+Dynamic standard-cell memory can reduce area overhead [34];
+Fig. 2. Explicitly deﬁned processing units VN 1,V N2,a n dV N4 connected
+to processing unit CN 1 based on the Tanner graph in Fig. 1 with Lvc and
+mcv messages indicated for decoding iterations i and i + 1.
+however, the cell retention time is susceptible to PVT varia-
+tions, particularly in newer technology nodes where leakage
+is higher.
+Time-domain signal processing techniques have
+been explored to shorten the critical path in CN and
+VN updates [35], [36]. However, such implementations also
+demonstrate timing closure challenges due to metastability,
+and PVT variations in the delay chains and custom clock-tree
+networks.
+F . Explicit Check and Variable Node Processing Units
+The two-phase decoding schedule allows check and variable
+updates to be mapped to explicit CN and VN processing units.
+Fig. 2 presents a dataﬂow diagram of Lvc and mcv messages
+between CN1 and its connected VNs. In each iteration, CN 1
+receives a unique Lvc message from each VN, and then
+calculates a unique mcv return message for each VN. This
+canonical mapping is adopted in most decoder implementa-
+tions; however, it requires all Lvc and mcv messages to be
+routed between the two processing groups through a congested
+interconnect network, with routing permutation logic in both
+the CNs and VNs. The complexity of the interconnect network
+and permutation logic scales with block length. The mcv
+computation in Step 2 of Algorithm 1 can be calculated using
+only the ﬁrst and second minimum magnitudes as follows:
+mcv ←
+{
+(sc×sgn(Lvc)) × min2c, if min1c =| Lvc|
+(sc×sgn(Lvc)) × min1c, otherwise (2)
+sc ←
+∏
+v∈N(c)
+sgn(Lvc) (3)
+min1c ← minv∈N(c)|Lvc| (4)
+min2c ← minv′∈N(c)\{vmin1}|Lv′c|. (5)
+However, high-order compare-select trees are still required.
+Pipeline registers can be added to relax the critical path timing
+constraints in the compare-select trees and CN-to-VN inter-
+connect; however, the scalability of the explicitly partitioned
+architecture remains limited. New architectural and scheduling
+techniques are therefore required to alleviate the global routing
+and energy efﬁciency challenges.
+III. P ROPOSED LDPC D ECODER ARCHITECTURE
+The proposed LDPC decoder architecture partitions the
+global message-passing network into structured, local inter-
+connect groups deﬁned between successive macrocolumns
+of the QC parity-check matrix. A time-distributed decoding
+schedule is introduced to exploit the spatial locality of update
+messages by combining the CN- and VN-phase update logic
+into a single processing unit with deterministic memory access.
+Authorized licensed use limited to: International Institute of Information Technology Bangalore. Downloaded on February 07,2026 at 07:05:32 UTC from IEEE Xplore.  Restrictions apply. MILICEVIC AND GULAK: MULTI-Gb/s FRAME-INTERLEA VED LDPC DECODER WITH PATH-UNROLLED MESSAGE PASSING IN 28-nm CMOS 1911
+Fig. 3. Simpliﬁed example of the pr oposed LDPC decoder architecture
+based on (a) sample two-layer QC parity-check matrix, and (b) Tanner graph
+with one decoding path highlighted . The arrangement of combined CN +VN
+processing units in the systolic array architecture and routing patterns in
+Layer 0 and Layer 1 are shown in (c). Messages in each layer are transmitted
+sequentially between connected CN+VN units in successive columns. In each
+column, all the layers inside each CN +VN unit are processed in parallel.
+In (c), the routing in Layer 0 is deﬁned by three closed paths that correspond
+to the VN connectivity of CN
+0,C N 1,a n dC N 2. In Layer 1, the routing
+is deﬁned by the VN connectivity of CN 3,C N 4,a n dC N 5. Thus, each
+CN has a unique routing pattern. The highlighted closed path given by
+VN0−CN2−VN4−CN2−VN8−CN2−VN0 in (b) is unrolled in (c) such that
+CN2 is absorbed into its connected VNs, resulting in the following unrolled
+path: VN0−VN4−VN8−VN0.
+The reformulation of the Min-Sum ﬂooding schedule leverages
+the QC interconnect structure to minimize routing congestion
+and permutation logic overhead , while enabling frame-level
+parallelism for multirate, multi-Gb/s decoding.
+A. Hardware Mapping With Path-Unrolled
+Decoding Schedule
+The proposed decoding schedule unrolls the CN update in
+time by distributing the CN-to-VN mcv message computation
+across all of the VNs that participate in the CN update. This
+differs from the traditional approach, where all mcv updates
+for CN c are computed in a single CN processing unit. Fig. 3
+presents an illustrative exampl e of the interconnect routing
+patterns and combined processing unit arrangement for the
+proposed architecture. For the QC matrix deﬁned in Fig. 3(a),
+the corresponding Tanner graph is shown in Fig. 3(b), where
+messages exchanged between connected CNs and VNs trace
+a closed path along the edges of the graph. As highlighted
+in Fig. 3(b), one such path is deﬁned by the node sequence:
+VN
+0−CN2−VN4−CN2−VN8−CN2−VN0. By unrolling this
+path, the intermediate CN 2 node can be removed by distrib-
+uting the CN update operation among its connected VNs.
+This modiﬁcation does not alter the result of the Min-Sum
+algorithm, but simply introdu ces a piecewise calculation of
+each CN-to-VN mcv message deﬁned in Step 2 of Algorithm 1.
+Fig. 3(c) shows combined processing nodes arranged in col-
+umn groups, which correspond to the macrocolumns of the QC
+matrix. The combined CN +VN processing units are indexed
+according to their VN ordering. Each combined CN +VN
+processor contains the original VN-update logic to compute
+Steps 3 and 4 of Algorithm 1, a s well as intermediate CN-
+update logic for the unrolled CN-to-VN mcv message compu-
+tation. The interconnect between column groups is deﬁned by
+the cyclic permutation between the connected VNs in adja-
+cent columns. Each partitioned network between successive
+column groups is hard wired, such that all combined CN +VN
+processors along each unrolled p ath are connected to a single
+CN in the original Tanner graph. For example, the Tanner
+graph edges labeled in Fig. 3(b) trace the following unrolled
+path in Layer 0 in Fig. 3(c): VN
+0−VN4−VN8−VN0. Routing
+complexity is constrained b etween successive columns by
+serializing the large fan-in/fan-out to/from each CN.
+The QC matrix guarantees that each VN is connected to at
+most one CN in each layer (macrorow) of the matrix. Hence,
+each layer of the QC matrix requires an independent routing
+layer in the proposed structure, as shown by Layers 0 and 1
+routing patterns in Fig. 3(c). This is a realization of the ﬂood-
+ing schedule and, thus, each combined CN +VN processor
+requires independent CN-update logic for each active process-
+ing layer. For example, in Fig. 3(c), the node corresponding to
+VN0 contains CN-update logic for both CN 2 and CN 4 paths
+in Layers 0 and 1, respectively.
+Bypass routing is required between successive columns in
+layers where an all-zero submatrix appears in the QC matrix,
+in order to maintain the continuity of the closed path in
+the message-passing interconnect and to guarantee an equal
+number of column hops in the path traversal. In the bypass
+mode, the processing node in the successive column is simply
+included in the path, and the CN- and VN-update computations
+are not performed. Bypass routing introduces an artiﬁcial edge
+into the Tanner graph, such that the number of CN +VN
+units in each closed path is equal. Section III-B describes the
+mathematical modiﬁcation to the ﬂooding Min-Sum algorithm
+as a result of the path-unrolled message-passing schedule.
+B. Time-Distributed Piecewise Min-Sum Computation
+The proposed architecture is a systolic array with homoge-
+neous CN+VN processors. Each closed routing path is deﬁned
+by the VNs connected to a single CN c, i.e., the VNs in the
+set N(c). By absorbing the CN update among all connected
+Authorized licensed use limited to: International Institute of Information Technology Bangalore. Downloaded on February 07,2026 at 07:05:32 UTC from IEEE Xplore.  Restrictions apply. 1912 IEEE TRANSACTIONS ON VERY LARGE SCALE INTEGRATION (VLSI) SYSTEMS, VOL. 26, NO. 10, OCTOBER 2018
+TABLE I
+PIECEWISE TIME -DISTRIBUTED REFORMULATION OF MIN -SUM ALGORITHM WITH FLOODING SCHEDULE FOR SINGLE -L AYER ROUTING PATH
+VNs, the traditional CN-to-VN mcv and VN-to-CN Lvc mes-
+sages deﬁned in Algorithm 1 are not explicitly computed,
+nor routed through the proposed structure. Instead, the Lvc
+and mcv computations are discretized through a reformulation
+of the ﬂooding Min-Sum algorithm. One decoding iteration
+requires two passes through the architecture. The ﬁrst pass
+corresponds to the CN-update phase, and the second pass
+corresponds to the VN-update phase. Table I presents one
+decoding iteration of the piecewise, time-distributed Min-Sum
+schedule for a complete CN routing path over T = n/q total
+columns.
+In the ﬁrst phase (CN update), the sign sc(t),ﬁ r s tm i n -
+imum magnitude min1c(t), and second minimum magnitude
+min2c(t) for every CN c are updated sequentially at every col-
+umn t over T processing-node hops in T successive columns.
+Each combined processing unit stores its own Lvc value from
+the previous iteration. In each iteration, when the path traversal
+hop arrives at a particular node in column t, the internally
+stored Lvc value is used to update the intermediate sign
+and minimum magnitudes, which are then sent to the next
+successive column t + 1. The path traversal then hops to the
+next connected processing node in the successive column, and
+the updates continue until the last column T − 1 of the structure
+is reached, at which point, the ﬁnal s
+c(T − 1), min1c(T − 1),
+and min2c(T − 1) for CN c are known.
+In the second phase (VN update), the sign and minimum
+magnitude values that were computed in the ﬁrst CN-update
+pass are not updated any further, but rather held constant and
+broadcasted through the CN path to all connected processing
+units over T successive hops. Each processing unit ﬁrst
+computes its own CN-to-VN mcv message based on (2). The
+computed mcv value is then used to calculate the intermediate
+LLR Lv , hard decision ˆCv , and new VN-to-CN Lvc message
+based on Steps 3 and 4 of Algorithm 1. The updated Lvc value
+is stored in the processing unit’s memory to be used in the
+next iteration. A piecewise parity computation is performed
+to eliminate the explicit parity check deﬁned by Step 5 in
+Algorithm 1. The parity pc(t) for CN c is updated sequentially
+along the closed path, such that the ﬁnal parity across all VNs
+Fig. 4. (a) Closed path through CN 2 in the Tanner graph for one pass
+(phase) of decoding. (b) Unrolled piecewise messages that are passed between
+combined CN +VN processing units through Layer 0 routing in successive
+columns corresponding to the closed pat h highlighted in (a). Starting column
+position does not affect the ﬁnal result of the piecewise distributed Min-Sum
+computation. Here, t = 0 arbitrarily corresponds to the third column of T = 3
+total columns. The same decodi ng result would be obtained if t = 0w a s
+chosen to be the ﬁrst or second column.
+connected to CN c is determined by the last column of the
+path traversal. The parity result from the current iteration is
+known at the start of the CN-update phase of the next iteration.
+Fig. 4 presents an example of the reformulated decod-
+ing procedure for one decoding iteration. A single layer
+message for CN2 of the form {pc(t), sc(t), min1c(t), min2c(t)}
+Authorized licensed use limited to: International Institute of Information Technology Bangalore. Downloaded on February 07,2026 at 07:05:32 UTC from IEEE Xplore.  Restrictions apply. MILICEVIC AND GULAK: MULTI-Gb/s FRAME-INTERLEA VED LDPC DECODER WITH PATH-UNROLLED MESSAGE PASSING IN 28-nm CMOS 1913
+Fig. 5. (a) Columnwise partitioning of the IEEE 802.11ad QC parity-check matr ices and their hardware mapping to the proposed architecture [13]. Each
+submatrix value indicates the cyclic permutation index of a 42 × 42 identity matrix. The four matrices are derived from a single 8-layer base matrix by
+removing layers in higher-rate matri ces or by removing cyclically-shifted submatrices in lo wer rate matrices. (b) System block diagram for the prop osed
+architecture showing the global control unit, and the datapath containing: column slices with combined CN +VN processing units and memories, a hard-wired
+cyclic permutation network between each column slice, and pipeline registers between column-slice pairs.
+is successively consumed and updated in each column t of
+T total columns among the T combined CN+VN processing
+units along the closed CN 2 path. The ﬁnal value of each of
+the four components at column T − 1 is given by (1) and
+(3)–(5). VN-update logic is inactive during the CN-update
+pass, and vice versa. In addition, column t = 0 does not
+necessarily correspond to the absolute ﬁrst column of the QC
+matrix, but rather refers to the starting column for a particular
+layer message. Since the distributed updates in each column
+are independent, multiple frames can be interleaved in the
+structure to ensure a constant workload in order to maximize
+hardware utilization and avoid idle logic.
+C. Parity-Check Matrix Partitioning and Hardware Mapping
+The hardware mapping of the proposed architecture targets
+the peak throughput modes of the IEEE 802.11ad standard,
+which speciﬁes a ﬁxed block length of 672 bits for four code
+rates, with a maximum throughput requirement of 6.757 Gb/s
+and maximum frame latency of 1 μs [13].
+Fig. 5(a) presents the columnwise partitioning of the four
+QC matrices from the IEEE 802.11ad standard. As shown
+in Fig. 5(a), the QC matrix for each of the four code rates
+is derived from a single 8-layer base matrix. Each of the
+16 macrocolumns maps directly to a column slice in the
+proposed architecture shown in Fig. 5(b), and maintains the
+same VN ordering such that each column slice contains
+42 combined CN+VN processing units. Adjacent columns are
+connected through hard-wired routing in each of the 8 deﬁned
+connection layers, which correspond to 8 × 42 = 336 CN
+paths.
+The connectivity between succe ssive columns is speciﬁc to
+the parity-check matrix. The interconnect mapping between
+Authorized licensed use limited to: International Institute of Information Technology Bangalore. Downloaded on February 07,2026 at 07:05:32 UTC from IEEE Xplore.  Restrictions apply. 1914 IEEE TRANSACTIONS ON VERY LARGE SCALE INTEGRATION (VLSI) SYSTEMS, VOL. 26, NO. 10, OCTOBER 2018
+TABLE II
+COLUMN -SLICE MESSAGES HIGHLIGHTED IN FIG .6
+CN+VN units in adjacent column slices is not any-to-any,
+but rather, is mandated by the column-to-column connectivity
+deﬁned by the matrix. Hence, there is no multiplexer fan-out
+between connected CN +VN processors in adjacent columns
+along the same CN path. Depending on the code rate, only
+a subset of layers may be active. The rate 1/2 code requires
+all 8 × 42 = 336 CN paths, whereas the rate 13/16 code
+requires only 3 × 42 = 126 CN paths. Inactive layers/paths
+are disabled (turned off) through clock gating. Each column
+in the matrices shown in Fig. 5(a) has at most 4 active
+CN connections and, thus, each CN +VN processor requires
+at most 4 processing layers. Processing nodes in the last
+4 columns require only 1, 2, or 3 processing layers due to
+the lower triangular matrix structure.
+This architecture exploits the QC matrix structure by
+constraining routing to local interconnect between adjacent
+columns. Since each of the four matrices is derived from
+a single base matrix, multirate functionality is intrinsic to
+the hard-wired cyclic permuta tion networks between adjacent
+columns. The same wiring is used between successive columns
+for multiple code rates, thus eliminating additional permutation
+and control logic to switch between code rates. As the decoder
+switches from a low-rate code to a high-rate code, e.g., from
+rate 1/2 to rate 3/4, the unused wired layers of the high-rate
+code are disabled. The decoder continues to pass messages
+along the active processing layers, and hardware utilization in
+the combined processing nodes remains at either 100% (for
+rate 1/2, 5/8, and 3/4 codes) or 75% (for the rate 13/16 code)
+since the four rates have either 3 or 4 active processing layers.
+D. Column Slice Architecture
+Fig. 6 presents the architecture of a single column slice,
+which contains local memories and processing nodes for the
+VNs associated with that particular QC macrocolumn. Table II
+provides an overview of the messages exchanged between the
+CN+VN units and local memories in the column slice. Here,
+p
+c(t) and sc(t) are each 1 bit, and min1c(t) and min2c(t) are
+each 4 bits, such that each layer message is 10 bits. Input LLRs
+are buffered in through the Qv memory write port. Output hard
+decisions are buffered out through the ˆCv memory read port.
+Outgoing update messages in column t are computed based
+on incoming messages from the previous column t − 1a n d
+values stored in the column-slice memories.
+The proposed architecture implements a pipelined frame
+interleaving schedule with input/output (I/O) frame buffering
+Fig. 6. Expanded detail of column slice t comprised of CN+VN processing
+units, local memory, and wired permutation networks between adjacent
+column slices. Pipeline registers are connected only to the ﬁrst column in
+a column-slice pair. Hard-wired interconnect is speciﬁed by the parity-check
+matrix connectivity and does not contain multiplexing logic. The operations
+in column slice t are computed in one clock cycle. All column-slice memories
+are dual-ported register ﬁles w ith one read port and one write port.
+TABLE III
+M
+EMORY SPECIFICATION IN EACH COLUMN SLICE
+to support continuous decoding without idle cycles. These fea-
+tures are described in Sections III-E and III-F. In each column
+slice, the input LLR Qv and output hard decision ˆCv memories
+require a memory depth of 16 frames to support I/O frame
+buffering, while the VN-to-CN Lvc message memories require
+a memory depth of 8 frames to support the parallel decoding
+of 8 interleaved frames. The total memory requirements for
+input LLRs, output hard decisions, and VN-to-CN messages
+across all 16 column slices are 53.760, 10.752, and 95.760 Kb,
+respectively, for a total decoder memory of 160.272 Kb.
+Table III provides a parametric overview of each column-slice
+memory. These conﬁgurations are speciﬁc to IEEE 802.11ad,
+and will vary depending on the CN-VN connectivity deﬁned
+by the matrix.
+Coarse-grained clock gating l ogic in each column-slice pair
+disables the pipeline registers and local memories from switch-
+ing when the current frame has successfully been decoded.
+Authorized licensed use limited to: International Institute of Information Technology Bangalore. Downloaded on February 07,2026 at 07:05:32 UTC from IEEE Xplore.  Restrictions apply. MILICEVIC AND GULAK: MULTI-Gb/s FRAME-INTERLEA VED LDPC DECODER WITH PATH-UNROLLED MESSAGE PASSING IN 28-nm CMOS 1915
+Fig. 7. Pipelined frame interleaving pa ttern through column-slice pairs over
+16 clock cycles of one decoding iteration comprised of two passes. The
+number in each bubble indicates the frame index. Frame 4 highlights the
+cyclic frame-shifting property of the architecture.
+Four independent clock gating cells are used in each column-
+slice pair to disable the input pipeline register bank to column
+t,a n dt h eQv , ˆCv ,a n d Lvc memories in columns t and t + 1,
+as highlighted by labels H, I, K, and L in Fig. 6, respectively.
+Label J in Fig. 6 shows the clock gating control for a pipeline
+register in the Lvc memory write path in the VN-update logic
+in each processing unit. When clock gating is active, the pair
+of column slices between two successive pipeline stages is
+effectively turned off. The clock gating pattern is identical for
+both columns t and t + 1 in a column-slice pair due to the
+pipelined frame interleaving described next.
+E. Pipelined Frame Interleaving
+The constant workload of the time-distributed decoding
+schedule enables message pipelining between successive col-
+umn slices, since the number of columns is ﬁxed for all
+code rates. As shown in Fig. 5(b), pipeline registers are
+placed after every two columns to satisfy the 1- μs decoding
+latency requirement of the IEEE 802.11ad standard, assuming
+10 decoding iterations. A single frame is shared by columns
+t and t + 1 in a column-slice pair. Since the computation in
+each column is independent and a constant number of hops
+is required to traverse each clos ed path, 8 independent frames
+can be interleaved without any memory access contention.
+Fig. 7 presents the frame interleaving schedule where 8
+interleaved frames are cyclically pipelined across 16 column
+slices. Both CN- and VN-update phases require 8 clock
+cycles to complete; thus, 16 cycles are required to complete a
+single iteration. Since each fra me is independent, the frame-
+interleaved schedule ensures full hardware utilization with-
+out stall cycles. Frames of different code rates can also
+be interleaved simultaneously with minimal bypass routing
+conﬁguration overhead.
+For a ﬁxed number of iterations, the minimum decod-
+ing throughput and maximum latency of a frame-interleaved
+Fig. 8. Input/output frame buffering sch edule, assuming a uniform decoding
+latency of 10 iterations with 16 clock cycles per iteration.
+LDPC decoder are given by the following equations :
+Throughput= Frames × Block Length × fclk
+Iterations × Cycles Per Iteration (bits/s) (6)
+Latency = Iterations × Cycles Per Iteration
+fclk
+(seconds). (7)
+For a block length of 672 bits, the proposed decoder achieves
+a throughput of 6.78 Gb/s and a latency of 0.793 μs with 8
+interleaved frames, while operating at fclk = 202 MHz clock
+rate and 10 iterations. This satisﬁes the maximum throughput
+and latency requirements of the IEEE 802.11ad standard.
+F . Input/Output Frame Buffering for Continuous Decoding
+The dual-ported channel LLR and hard decision memories
+enable I/O frame buffering such that the decoder runs con-
+tinuously without any idle cycles. Fig. 8 presents a timing
+diagram of the pipelined I/O frame buffering schedule. The
+I/O latency is masked by the compute latency of the decoder.
+While the current 8 frames are being decoded, the next 8
+frames are loaded in to the channel LLR Qv memory, and
+the previous 8 frames are buffered out from the hard decision
+ˆCv memory. As shown in Table III, the Qv and ˆCv memories
+have twice the depth compared to the VN-to-CN Lvc memory
+to accommodate this schedule.
+G. Combined CN +VN Processing Unit Architecture
+Fig. 9 presents the architecture of the combined CN +VN
+processing unit, where CN- and VN-update logic blocks share
+the memory and layer-message routing interfaces. The CN-
+and VN-update logic is partitioned independently. VN logic
+is disabled (turned off) during the CN phase, and vice versa.
+One clock cycle is required to perform either the CN or VN
+update in column slice t.
+In every clock cycle, the combined CN +VN processing
+unit in column t ﬁrst receives an incoming layer message
+{pc(t − 1), sc(t − 1), min1c(t − 1), min2c(t − 1)} from its
+connected processing node in the previous column t− 1. Either
+the CN- or VN-update is performed using the elements of the
+incoming layer message and the internal Lvc and Qv values.
+The updated {pc(t), sc(t), min1c(t), min2c(t)} layer message
+is then transmitted to its connected node in column t + 1.
+In the CN phase, stored Lvc values for each active process-
+ing layer are read in parallel from the Lvc memory. The
+magnitude of each Lvc value is compared with the min1c(t− 1)
+and min2c(t − 1) values of the incoming layer message, while
+the sign of each Lvc value is compared with the sign element
+Authorized licensed use limited to: International Institute of Information Technology Bangalore. Downloaded on February 07,2026 at 07:05:32 UTC from IEEE Xplore.  Restrictions apply. 1916 IEEE TRANSACTIONS ON VERY LARGE SCALE INTEGRATION (VLSI) SYSTEMS, VOL. 26, NO. 10, OCTOBER 2018
+Fig. 9. Combined CN +VN processing unit for time-distributed piecewise
+decoding, showing CN- and VN-update phase logic, memory interfaces, and
+data permutation logic between proce ssing units in successive column slices.
+A retiming register is included in the L
+vc memory write path.
+sc(t − 1) of the incoming layer message. The updated sc(t),
+min1c(t),a n d min2c(t) values are transmitted to the next
+column slice. In the ﬁrst decoding iteration, the Lvc values are
+not initialized and, thus, the Qv LLR memory is read instead.
+In the VN phase, the Lvc message for each active processing
+layer, hard decision ˆCv bit, and parity message element
+pc(t) are updated based on the computed minimum sign and
+magnitude values in the previous CN phase. The parity pc(t)
+element of the layer message is updated, and transmitted to the
+next column, along with the unmodiﬁed sc(t− 1), min1c(t− 1),
+and min2c(t− 1) elements that were received from the previous
+column. The early-terminatio n parity check is performed in
+the ﬁrst clock cycle of the CN-phase, starting from the second
+decoding iteration, once the pc(t) parity bits in each layer
+message have been computed and have returned home to their
+starting column t = 0 in the closed path traversal.
+Both sign-magnitude (SM) and 2’s complement number
+formats are used in the combined processing node logic. Each
+L
+vc message is represented in a 5-bit SM format with 1 sign
+bit and 4 magnitude bits, to enable direct comparison of the
+sign and magnitude with the incoming sc(t − 1), min1c(t − 1),
+and min2c(t − 1) values. Each Qv LLR is represented in a
+5-bit 2’s complement format to avoid SM-to-2’s complement
+conversion prior to the addition operation in the VN phase. The
+intermediate mcv value in the VN phase is also represented by
+5 bits in 2’s complement format. The hard decision ˆCv is the
+most signiﬁcant bit of the updated LLR Lv .
+The CN+VN processing unit exploits the spatial locality of
+Lvc and Qv values stored in partitioned column-slice memo-
+ries through a deterministic access pattern during the CN- and
+VN-update phases. The combined CN and VN logic minimizes
+routing complexity between processing units and eliminates
+additional data shifting logic. The time-distributed decod-
+ing schedule also eliminates the timing-constrained compare-
+select and XOR trees employed in traditional architectures to
+compute the minimum magnitudes, sign, and parity.
+Fig. 10 presents the timing diagram for each frame j that is
+decoded through two CN +VN processing units in successive
+columns t and t + 1 within a single pipeline stage over one
+clock cycle. The timing diagram highlights the individual
+operations in the CN- and VN-update phases, as well as
+the data dependency and message-passing sequence between
+processing units in successive columns t and t + 1. All
+CN+VN units perform the same operation in each clock cycle.
+H. Early Termination With Coarse-Grained Clock Gating
+Early termination logic terminates the decoding of frames
+where the parity-check condition across all CNs is satisﬁed,
+i.e., p
+c = 0 for every CN path as deﬁned by (1). Early
+termination saves power at high SNR, where the majority
+of frames terminate within 1–3 iterations. Lower latency and
+higher throughput can be achieved if the decoder is conﬁgured
+to run continuously. In this case, the next 8 frames begin
+decoding immediately after the current 8 frames terminate.
+The early termination check is performed independently at
+the starting column t = 0 for each interleaved frame. Clock
+gating turns off column slices, in which the current frame
+has terminated. Fig. 11 presents a sample frame termination
+pattern, which shows all eight frames terminating within 5 iter-
+ations. Frames that have terminated are not updated or cycled
+further.
+The proposed frame-interleaved architecture addresses the
+challenges of designing a multi-Gb/s LDPC decoder with
+low-complexity interconnect and multirate reconﬁgurability,
+by introducing a time-distributed decoding schedule and com-
+bined CN +VN processing unit design. Section IV presents
+Authorized licensed use limited to: International Institute of Information Technology Bangalore. Downloaded on February 07,2026 at 07:05:32 UTC from IEEE Xplore.  Restrictions apply. MILICEVIC AND GULAK: MULTI-Gb/s FRAME-INTERLEA VED LDPC DECODER WITH PATH-UNROLLED MESSAGE PASSING IN 28-nm CMOS 1917
+Fig. 10. Processing unit timing diagram for CN- and VN-update phases
+showing three independent frame upda tes over three clock cycles. Each
+CN+VN processing unit updates a single frame j in each clock cycle. All
+arrow-highlighted operations occur i n each clock cycle and independently
+for each frame j, j ∈{ 0, 1,..., 7}. Circled labels B–F correspond to the
+connections shown in the column slice architecture in Fig. 6. The following
+operations are highlighted. (a) Sign sc(t), ﬁrst minimum magnitude min1c(t),
+and second minimum magnitude min2c(t) updates through column slice pair.
+(b) Parity pc(t) updates through column-slic e pair. (c) Independent Lvc and
+ˆCv updates in columns t and t + 1. (d) Propagation of sign, ﬁrst minimum
+magnitude, and second minimum magnitude messages to the next column-
+slice pair without updates in columns t and t + 1.
+the physical implementation details and results of a proof-
+of-concept silicon test chip that demonstrates the low-power
+performance of the proposed architecture.
+IV . PHYSICAL IMPLEMENTATION AND RESULTS
+An LDPC decoder test chip was synthesized, placed-
+and-routed, and fabricated in a 28-nm CMOS technology
+as a proof-of-concept of the proposed architecture. The
+design contains 837 Kgates and 160 Kb of embedded static
+Fig. 11. Sample frame termination pattern in frame-interleaved architecture.
+The highlighted frames are assumed to have terminated. One iteration is
+performed over 16 clock cycles. Frames that have terminated are not updated
+in their current pipeline stage. Colum n slices in which the current frame has
+terminated are disabled through coarse -grained clock gating in each cycle.
+random-access memory (eSRAM), which was generated using
+a commercial memory compiler. Embedded SRAMs were
+implemented instead of standard-cell ﬂip-ﬂops due to their
+higher bit-cell density, testability, and repairability to max-
+imize post-fabrication yield. The decoder supports all four
+code rates and 24 throughput modes of the IEEE 802.11ad
+standard, while operating at a nominal 0.9-V supply and 202-
+MHz clock rate. Fig. 12 presents a die micrograph of the test
+chip. The decoder core in the fabricated test chip occupies
+an area of 3.41 mm
+2, and contains two power domains to
+independently measure core logic and eSRAM power.
+The core area of the fabricated test chip was signiﬁcantly
+larger than necessary to accommodate the two decoupled
+power domains. The proposed design was also placed-and-
+routed without any timing violations across all PVT corners
+using a single power domain that allowed for higher placement
+density between standard cells and eSRAM blocks, achieving
+ac o r ea r e ao f1 . 9 9m m2. In comparison to the fabricated
+chip, the 1.99-mm 2 placed-and-routed design occupies 1.71 ×
+less area, has 0.82 × total wire length, 0.85 × standard cell
+area, and 0.52 × buffer area. Given these area reductions and
+assuming uniform switching activity, the 1.99-mm 2 design
+would consume approximately 1.18 × less power than the
+fabricated test chip. The results for both the actual measured
+power of the fabricated test chip and the estimated power of
+the reduced-area placed-and-rout ed design are presented here.
+A. Error-Correction Decoding Performance
+Fig. 13 presents the frame error rate (FER) and BER
+performance of the four codes. The input LLRs are quantized
+to 5 bits for both ﬂoating-point and ﬁxed-point simulations.
+B. Post-Silicon Power Measurements
+The fabricated chip was tested on a Teradyne UltraFLEX-
+HD automated tester at a room temperature of 21 °C. The chip
+contains two test modes for at-speed functional veriﬁcation
+and power measurement. In the functional test mode, channel
+Authorized licensed use limited to: International Institute of Information Technology Bangalore. Downloaded on February 07,2026 at 07:05:32 UTC from IEEE Xplore.  Restrictions apply. 1918 IEEE TRANSACTIONS ON VERY LARGE SCALE INTEGRATION (VLSI) SYSTEMS, VOL. 26, NO. 10, OCTOBER 2018
+Fig. 12. Die micrograph of the fabri cated test chip with wirebonds shown in
+exposed package. The decoder core (eSRAM, decoder logic, and I/O interface)
+occupies an area of 3.41 mm 2 (3.20 mm × 1.06 mm). The total die size
+including pads is 4.78 mm 2 (3.36 mm × 1.42 mm).
+Fig. 13. FER and BER versus SNR under Min-Sum decoding for all
+four IEEE 802.11ad codes on BIAWGNC with maximum 10 decoding
+iterations. Channel SNR is normalized to energy per bit based on E
+b/N0 =
+1/(2σ2 Rcode).
+input LLRs are loaded through a s hift-register I/O interface,
+the decoding is performed, and the output hard decision bits
+are shifted out. The captured hard decision bits are compared
+with a set of expected values predetermined through C ++
+simulation of a ﬁxed-point LDPC decoder with a ﬂoating-point
+BIAWGNC model. The chip functionality was veriﬁed up to
+300 MHz over 40 test cases: ﬁve SNR points in each of the
+four code rates, both with and without early termination. In the
+power test mode, decoded hard decision bits are not shifted
+out after each set of frames terminates. Instead, the decoder
+runs continuously such that once a set of frames terminates,
+the decoder immediately restarts the decoding cycle without
+any idle period. The supply current is sampled over 10 ms to
+obtain an accurate power measurement.
+Fig. 14 presents the average power measured over ten
+typical-corner chi ps under nominal conditions. With early
+termination, overall power can be reduced by up to 1.43 ×
+for the rate 1/2 code at Eb/N0 = 4.6 dB and 2.93 × for
+the rate 13/16 code at Eb/N0 = 5.4 dB, while satisfying
+the maximum throughput speciﬁcation of the IEEE 802.11ad
+standard. As the code rate increases, the power consumption
+decreases since the higher SNR enables more frequent early-
+termination clock gating. In addition, as shown in Fig. 5(a),
+the rate 13/16 code has only 3 active processing layers and,
+thus, less active logic than the other three codes.
+TABLE IV
+PERCENTAGE BREAKDOWN OF DESIGN AREA AND ESTIMATED POWER
+TABLE V
+DECODER PERFORMANCE AT BER = 10−6 WITH EARLY TERMINATION
+Table IV presents an area breakdown by decoder module
+for the 1.99-mm 2 placed-and-routed design, and the esti-
+mated power consumed by each module in the 3.41-mm 2
+fabricated test chip for four high-performance SNR points.
+Table V highlights the energy efﬁciency of both the nom-
+inal and low-power mode for four SNR points at a target
+BER of 10
+−6. With clock-frequency and voltage scaling,
+the decoder satisﬁes the required data rates with up to 2.85 ×
+less power than the nominal case. Through the multiframe
+I/O buffering technique shown in Fig. 8, the decoder can
+achieve higher throughput with lower latency by immediately
+starting to decode the next set of frames if the current set of
+frames terminates early. In this case, the power consumption
+is higher; however, the energy efﬁciency per bit remains the
+same, as shown in Table VI.
+C. Comparison With the State of the Art
+Table VI compares this work to the ﬁve most recently
+published CMOS-based, multi-Gb/s decoders for the IEEE
+Authorized licensed use limited to: International Institute of Information Technology Bangalore. Downloaded on February 07,2026 at 07:05:32 UTC from IEEE Xplore.  Restrictions apply. MILICEVIC AND GULAK: MULTI-Gb/s FRAME-INTERLEA VED LDPC DECODER WITH PATH-UNROLLED MESSAGE PASSING IN 28-nm CMOS 1919
+Fig. 14. Measured power of the 3.41-mm 2 fabricated test chip at nominal 0.9-V supply and 202- MHz clock rate, with and without early termination,
+delivering 6.78-Gb/s throughput. The ﬁve Eb/N0 SNR points chosen for each code rate correspond to th e ﬁve highest performance points in the waterfall
+region of each error-rate curve in Fig. 13. With early termination, eSRAM consumes between 18% and 23% of the total core power.
+TABLE VI
+COMPARISON OF LDPC D ECODER IMPLEMENTATIONS FOR THE IEEE 802.11 AD STANDARD
+802.11ad standard [32], [33], [37]–[39]. All comparison works
+implement a partially-parallel architecture with a variant of the
+Min-Sum algorithm and achieve similar BER performance.
+Several matrix modiﬁcations are applied among the compari-
+son works, yielding different permutation network structures.
+This work reduces routing complexity by eliminating message
+Authorized licensed use limited to: International Institute of Information Technology Bangalore. Downloaded on February 07,2026 at 07:05:32 UTC from IEEE Xplore.  Restrictions apply. 1920 IEEE TRANSACTIONS ON VERY LARGE SCALE INTEGRATION (VLSI) SYSTEMS, VOL. 26, NO. 10, OCTOBER 2018
+permutation logic using partitioned routing networks between
+adjacent column slices. While the 1.99-mm2 placed-and-routed
+design occupies between 1.24 × and 3.16 × more unnormal-
+ized silicon area than the comparison works, the 3.41-mm 2
+measured test chip achieves the lowest clock rate and highest
+normalized energy efﬁciency for the rate 13/16 code, and
+comparable normalized energy efﬁciency for the rate 1/2 code
+with acceptable latency. Despite the 160-Kb memory require-
+ment, this work achieves low-power performance by turning
+off logic and memories via clock gating. As mentioned earlier,
+the placed-and-routed 1.99 mm
+2 design with a single power
+domain offers an estimated 1.18 × reduction in power versus
+the 3.41-mm 2 fabricated test chip. Based on this estimate,
+this work achieves the highest normalized energy efﬁciency
+compared with the ﬁve compar ison works, as highlighted in
+the “Estimated Norm. Energy Efﬁciency” row in Table VI.
+Silicon area and power are not normalized to a particular
+CMOS technology node in Table VI, as Dennard scaling
+rules do not hold in newer nodes below 65 nm due to
+increased leakage current and adoption of dark silicon design
+techniques [14].
+This section provides further comparison and discussion of
+the measured 3.41-mm 2 test chip versus the ﬁve compari-
+son works. This work achieves approximately equal normal-
+ized energy efﬁciency for the rate 1/2 code compared with
+Weiner et al. [32], whose decoder was implemented using a
+fully-depleted silicon-on-insulator technology, which is known
+to provide superior power performance over conventional bulk
+CMOS [40]. Under worst-case channel conditions with a
+maximum of 15 decoding iterations, Weiner et al. achieve
+a throughput of only 3.00 Gb/s, which is below the maxi-
+mum throughput speciﬁcation for IEEE 802.11ad. This work
+achieves 1.5 × higher normalized energy efﬁciency than the
+single-rate ASIC decoder by Park et al. [33], and similar nor-
+malized energy efﬁciency compared with the pre-silicon and
+application-speciﬁc instructio n set processor decoder imple-
+mentations for the rate 1/2 code by Ajaz and Lee [37] and
+Li et al. [38]. Their higher respective clock rates of 360, 400,
+and 470 MHz may introduce SoC integration challenges. The
+measured chip in this work achieves 3.1 × higher normalized
+energy efﬁciency for the rate 13/16 code compared with the
+ASIC decoder by Motozuka et al. [39]. The LDPC decoder
+presented in this work achieves high energy efﬁciency, high
+error-rate performance, and the lowest clock rate in a modern
+bulk CMOS technology using commercial eSRAM.
+V. C
+ONCLUSION
+This paper introduced a new partially parallel LDPC
+decoder architecture with pipelined frame interleaving and a
+path-unrolled message-passing schedule. The ﬂooding Min-
+Sum algorithm was reformulated through a time-distributed
+computation over multiple processing units that contain both
+CN and VN update logic. Message permutation overhead
+and unstructured routing are minimized by exploiting the
+cyclic structure between ad jacent macrocolumns in the QC
+matrix. The proof-of-concept CMOS-based decoder achieves
+a nominal throughput of 6.78 Gb/s with an energy efﬁciency
+between 1.53 and 4.12 pJ/bit/ite ration at 0.9-V supply with a
+202-MHz clock rate, which is ideally suited for SoC integra-
+tion. By trading off interconnect complexity for high transistor
+area, the proposed architecture introduces a new design strat-
+egy for LDPC decoders in modern CMOS technology nodes,
+where interconnect scaling has stagnated.
+The architecture can be extended to support layered decod-
+ing at the expense of latency and control complexity. With
+a layered schedule, the VN update phase would still require
+only one pass; however, the CN update phase would require
+the same number of passes as the maximum VN degree.
+The proposed architecture is also scalable to longer block-
+length codes, since 1) the critical timing path is not con-
+strained by the expansion factor of the QC parity-check matrix;
+2) the complexity of localized routing between successive
+columns is bounded by the number of connection layers;
+and 3) the high bit-cell density of eSRAM compensates for
+additional overhead in processing node logic. The architecture
+is reconﬁgurable and can be extended to support multiple
+standards with different parity -check matrices by including
+programmable shifters between successive columns. The over-
+all memory size can be reduced by interleaving fewer frames
+in the architecture, e.g., four frames instead of eight frames.
+In this case, the decoder can maintain the same throughput by
+reducing the number of pipeline stages in each phase.
+The architecture is not restricted to QC codes, but can also
+be applied more generally to random codes, or to codes that
+allow columnwise matrix partitioning as a way to enforce
+structure. Consider the example of a non-QC matrix with two
+CN connections to a VN in a single macrolayer, i.e., two “1”
+elements in a submatrix column. Here, the combined CN +VN
+processing unit simply needs additional CN-update logic to
+support the additional CN connected to the VN, while the
+VN-update logic remains the same. Additional wired routing is
+required to and from the additional CN-update logic; however,
+the overall path-unrolled message-passing schedule remains
+the same. This example can be extended to a random code,
+which can be partitioned into uniformly-sized macrocolumns.
+Finally, the systolic nature of the proposed architecture is
+well suited for windowed decoding of spatially coupled LDPC
+codes [41]. Each decoding window of a spatially-coupled code
+can be mapped to an independent column-slice pair. Instead of
+decoding multiple frames, the decoder would slide the window
+as data moves from one pipeline stage to the next.
+R
+EFERENCES
+[1] R. G. Gallager, “Low-density parity-check codes,” IRE Trans. Inf.
+Theory, vol. 8, no. 1, pp. 21–28, Jan. 1962.
+[2] D. J. C. MacKay, “Good error-correcting codes based on very sparse
+matrices,” IEEE Trans. Inf. Theory , vol. 45, no. 2, pp. 399–431,
+Mar. 1999.
+[3] T. J. Richardson, M. A. Shokrollahi, and R. L. Urbanke, “Design of
+capacity-approaching irregular low- density parity-check codes,” IEEE
+Trans. Inf. Theory, vol. 47, no. 2, pp. 619–637, Feb. 2001.
+[4] S.-Y . Chung, G. D. Forney, Jr., T. J. Richardson, and R. Urbanke, “On
+the design of low-density parity-check codes within 0.0045 dB of the
+Shannon limit,” IEEE Commun. Lett., vol. 5, no. 2, pp. 58–60, Feb. 2001.
+[5] IEEE Standard for Information Technology—Part 11: Wireless LAN
+Medium Access Control (MAC) and Physical Layer (PHY) Speciﬁca-
+tions, IEEE Standard 802.11ac-2013, Dec. 2013, pp. 1–425.
+[6] T. Mohsenin, D. N. Truong, and B. M. Baas, “A low-complexity
+message-passing algorithm for reduced routing congestion in LDPC
+decoders,” IEEE Trans. Circuits Syst. I, Reg. Papers , vol. 57, no. 5,
+pp. 1048–1061, May 2010.
+[7] K. Cushon, S. Hemati, C. Leroux, S. Mannor, and W. J. Gross,
+“High-throughput energy-efﬁcient LD PC decoders using differential
+binary message passing,” IEEE Trans. Signal Process. , vol. 62, no. 3,
+pp. 619–631, Feb. 2014.
+Authorized licensed use limited to: International Institute of Information Technology Bangalore. Downloaded on February 07,2026 at 07:05:32 UTC from IEEE Xplore.  Restrictions apply. MILICEVIC AND GULAK: MULTI-Gb/s FRAME-INTERLEA VED LDPC DECODER WITH PATH-UNROLLED MESSAGE PASSING IN 28-nm CMOS 1921
+[8] S. M. Rossnagel, R. Wisnieff, D. Edelstein, and T. S. Kuan, “Intercon-
+nect issues post 45 nm,” in IEDM Tech. Dig., Dec. 2005, pp. 89–91.
+[9] R. Brain, “Interconnect scali ng: Challenges and opportunities,” in IEDM
+Tech. Dig., Dec. 2016, pp. 9.3.1–9.3.4.
+[10] K. Okada et al., “Full four-channel 6.3-Gb/s 60-GHz CMOS transceiver
+with low-power analog and digital baseband circuitry,” IEEE J. Solid-
+State Circuits, vol. 48, no. 1, pp. 46–65, Jan. 2013.
+[11] K. Zhang, X. Huang, and Z. Wa ng, “High-throughput layered decoder
+implementation for quasi-cyclic LDPC codes,” IEEE J. Sel. Areas
+Commun., vol. 27, no. 6, pp. 985–994, Aug. 2009.
+[12] Z. Chen, X. Peng, X. Zhao, L. Okamura, D. Zhou, and S. Goto,
+“A 6.72-Gb/s, 8pJ/bit/iteration WPAN LDPC decoder in 65 nm CMOS,”
+in Proc. 18th Asia South Paciﬁc Design Autom. Conf. (ASP-DAC) ,
+Jan. 2013, pp. 87–88.
+[13] IEEE Standard for Information Technology—Part 11: Wireless LAN
+Medium Access Control (MAC) and Physical Layer (PHY) Speciﬁca-
+tions, IEEE Standard 802.11ad-2012, Dec. 2012, pp. 1–628.
+[14] M. B. Taylor, “A landscape of the new dark silicon design regime,”
+IEEE Micro, vol. 33, no. 5, pp. 8–19, Sep./Oct. 2013.
+[15] M. Fossorier, M. Mihaljevic, and H. Imai, “Reduced complexity iterative
+decoding of low-density parity check codes based on belief propagation,”
+IEEE Trans. Commun., vol. 47, no. 5, pp. 673–680, May 1999.
+[16] R. M. Tanner, “A recursive approach to low complexity codes,” IEEE
+Trans. Inf. Theory, vol. TIT-27, no. 5, pp. 533–547, Sep. 1981.
+[17] F. R. Kschischang, B. J. Frey, and H.-A. Loeliger, “Factor graphs and
+the sum-product algorithm,” IEEE Trans. Inf. Theory , vol. 47, no. 2,
+pp. 498–519, Feb. 2001.
+[18] D. Oh and K. Parhi, “Optimally quantized offset min-sum algorithm for
+ﬂexible LDPC decoder,” in Proc. Asilomar Conf. Signals, Syst. Comput.,
+Oct. 2008, pp. 1886–1891.
+[19] M. M. Mansour and N. R. Shanbhag, “High-throughput LDPC
+decoders,” IEEE Trans. Very Large Scale Integr. (VLSI) Syst. , vol. 11,
+no. 6, pp. 976–996, Dec. 2003.
+[20] M. P. C. Fossorier, “Quasicyclic low-density parity-check codes from
+circulant permutation matrices,” IEEE Trans. Inf. Theory, vol. 50, no. 8,
+pp. 1788–1793, Aug. 2004.
+[21] A. J. Blanksby and C. J. Howland, “A 690-mW 1-Gb/s 1024-b, rate-1/2
+low-density parity-check code decoder,” IEEE J. Solid-State Circuits ,
+vol. 37, no. 3, pp. 404–412, Mar. 2002.
+[22] D. Oh and K. K. Parhi, “Low-complexity switch network for reconﬁg-
+urable LDPC decoders,” IEEE Trans. Very Large Scale Integr. (VLSI)
+Syst., vol. 18, no. 1, pp. 85–94, Jan. 2010.
+[23] C. Roth, A. Cevrero, C. Studer, Y . Leblebici, and A. Burg, “Area,
+throughput, and energy-efﬁciency trade-offs in the VLSI implementation
+of LDPC decoders,” in Proc. IEEE Int. Symp. Circuits Syst. (ISCAS) ,
+May 2011, pp. 1772–1775.
+[24] D. E. Hocevar, “A reduced complex ity decoder architecture via layered
+decoding of LDPC codes,” in Proc. IEEE Workshop Signal Process.
+Syst., Oct. 2004, pp. 107–112.
+[25] T. Bhatt, V . Sundaramurthy, V . S tolpman, and D. McCain, “Pipelined
+block-serial decoder architectur e for structured LDPC codes,” in Proc.
+IEEE Int. Conf. Acoust. Speech Signal Process. , vol. 4, pp. 225–228,
+May 2006.
+[26] A. Darabiha, A. C. Carusone, and F. R. Kschischang, “Power reduction
+techniques for LDPC decoders,” IEEE J. Solid-State Circuits , vol. 43,
+no. 8, pp. 1835–1845, Aug. 2008.
+[27] Z. Wang and Z. Cui, “Low-complexity high-speed decoder design for
+quasi-cyclic LDPC codes,” IEEE Trans. Very Large Scale Integr. (VLSI)
+Syst., vol. 15, no. 1, pp. 104–114, Jan. 2007.
+[28] Y . Chen and K. K. Parhi, “Overlapped message passing for quasi-
+cyclic low-density parity check codes,” IEEE Trans. Circuits Syst. I,
+Reg. Papers, vol. 51, no. 6, pp. 1106–1113, Jun. 2004.
+[29] L. Liu and C.-J. R. Shi, “Sliced message passing: High throughput
+overlapped decoding of high-rate low-density parity-check codes,” IEEE
+Trans. Circuits Syst. I, Reg. Papers , vol. 55, no. 11, pp. 3697–3710,
+Dec. 2008.
+[30] M. Li et al. , “An area and energy efﬁcient half-row-paralleled layer
+LDPC decoder for the 802.11AD standard,” in Proc. IEEE Workshop
+Signal Process. Syst. , Oct. 2013, pp. 112–117.
+[31] S. Kumawat et al., “High-throughput LDPC-decoder architecture using
+efﬁcient comparison technique s & dynamic multi-frame processing
+schedule,” IEEE Trans. Circuits Syst. I, Reg. Papers , vol. 62, no. 5,
+pp. 1421–1430, May 2015.
+[32] M. Weiner, M. Blagojevic, S. Skotnikov, A. Burg, P. Flatresse, and
+B. Nikolic, “27.7 A scalable 1.5-to-6Gb/s 6.2-to-38.1 mW LDPC
+decoder for 60 GHz wireless netw orks in 28 nm UTBB FDSOI,” in
+ISSCC Dig. Tech. Papers, Feb. 2014, pp. 464–465.
+[33] Y . S. Park, D. Blaauw, D. Sylvester, and Z. Zhang, “Low-power
+high-throughput LDPC decoder usi ng non-refresh embedded DRAM,”
+IEEE J. Solid-State Circuits , vol. 49, no. 3, pp. 783–794, Mar. 2014.
+[34] P. Meinerzhagen, A. Bonetti, G. Karakonstantis, C. Roth, F. Giirkaynak,
+and A. Burg, “Refresh-free dynamic s tandard-cell based memories:
+Application to a QC-LDPC decoder,” in Proc. IEEE Int. Symp. Circuits
+Syst., May 2015, pp. 1426–1429.
+[35] D. Miyashita et al. , “An LDPC decoder with time-domain analog and
+digital mixed-signal processing,” IEEE J. Solid-State Circuits , vol. 49,
+no. 1, pp. 73–83, Jan. 2014.
+[36] M. R. Li, C.-H. Yang, and Y .-L. Ueng, “A 5.28-Gb/s LDPC decoder
+with time-domain signal processing for IEEE 802.15.3c applications,”
+IEEE J. Solid-State Circuits , vol. 52, no. 2, pp. 592–604, Feb. 2017.
+[37] S. Ajaz and H. Lee, “Multi-Gb/s multi-mode LDPC decoder architecture
+for IEEE 802.11ad standard,” in Proc. IEEE Asia Paciﬁc Conf. Circuits
+Syst. (APCCAS), Nov. 2014, pp. 153–156.
+[38] M. Li et al., “An energy efﬁcient 18Gbps LD PC decoding processor for
+802.11ad in 28 nm CMOS,” in Proc. IEEE Asian Solid-State Circuits
+Conf., Nov. 2015, pp. 1–5.
+[39] H. Motozuka, N. Yosoku, T. Sakamo to, T. Tsukizawa, N. Shirakata, and
+K. Takinami, “A 6.16Gb/s 4.7pJ/bit/iteration LDPC decoder for IEEE
+802.11ad standard in 40 nm LP-CMOS,” in Proc. IEEE Global Conf.
+Signal Inf. Process. (GlobalSIP) , Dec. 2015, pp. 1289–1292.
+[40] J. Colinge, “Fully-depleted SOI CMOS for analog applications,” IEEE
+Trans. Electron Devices, vol. 45, no. 5, pp. 1010–1016, May 1998.
+[41] D. G. M. Mitchell, M. Lentmaier, and D. J. Costello, “Spatially coupled
+LDPC codes constructe d from protographs,” IEEE Trans. Inf. Theory ,
+vol. 61, no. 9, pp. 4866–4889, Sep. 2015.
+Mario Milicevic (S’11–M’17) received the B.A.Sc.
+and Ph.D. degrees in electrical engineering from
+the University of Toronto, Toronto, ON, Canada,
+in 2010 and 2017, respectively. His Ph.D. research
+focused on the design of error-correction decoders
+for integrated circuits and quantum cryptography.
+He is currently a Staff Communication Systems
+Engineer at MaxLinear Inc., Irvine, CA, USA, where
+he is responsible for the development of algorithms
+and architectures for high-performance networking
+semiconductor products.
+P. Glenn Gulak (S’82–M’83–SM’96) is currently
+a Professor with the Department of Electrical
+and Computer Engineering, University of Toronto,
+Toronto, ON, Canada. He has authored or coau-
+thored over 150 publications in refereed journals
+and conference proceedings. His current research
+interests include the areas of algorithms, circuits, and
+CMOS implementations of high-performance base-
+band digital communication systems and hardware
+accelerators.
+Dr. Gulak has received numerous teaching awards
+at the University of Toronto.
+Authorized licensed use limited to: International Institute of Information Technology Bangalore. Downloaded on February 07,2026 at 07:05:32 UTC from IEEE Xplore.  Restrictions apply. 
