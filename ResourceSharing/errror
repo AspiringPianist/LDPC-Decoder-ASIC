@@ -1,21 +1,42 @@
-# synth.tcl
-# Cadence Genus Synthesis Script for LDPC Decoder
+# synth_oom_safe.tcl
+# Cadence Genus Synthesis Script (OOM-Resistant Version)
+
+# -------------------------------------------------------------------------
+# 0. Session / Logging
+# -------------------------------------------------------------------------
+puts "============================================================"
+puts " Genus OOM-Safe Synthesis Run"
+puts "============================================================"
+
+file mkdir reports
+file mkdir outputs
+file mkdir logs
 
 # -------------------------------------------------------------------------
 # 1. Setup Libraries and Environment
 # -------------------------------------------------------------------------
-# TODO: FILL IN YOUR TARGET TECHNOLOGY LIBRARY PATHS HERE
 set lib_search_path   { /home/redhatacademy19/N_test/cadence_45nm/lib }
 set target_library    { slow_vdd1v0_basicCells.lib }
 
 set_db init_lib_search_path $lib_search_path
 set_db library $target_library
-# set_db lef_library $lef_files  ;# Uncomment if physical synthesis is needed
 
-# Enable ultra-high effort for best area and timing (useful for resource sharing)
+# ---------------- OOM PREVENTION SETTINGS ----------------
+# Limit CPU threads (more threads = more memory replication)
+set_db max_cpus 4
+
+# Preserve hierarchy (avoid flatten explosion)
+set_db auto_ungroup none
+
+# Keep effort conservative
 set_db syn_generic_effort low
 set_db syn_map_effort     low
 set_db syn_opt_effort     low
+
+# Disable aggressive options if enabled by defaults
+catch {set_db optimize_constant_0_flops false}
+catch {set_db optimize_constant_1_flops false}
+catch {set_db delete_unloaded_seqs false}
 
 # -------------------------------------------------------------------------
 # 2. Read RTL
@@ -23,8 +44,8 @@ set_db syn_opt_effort     low
 set search_path "."
 set_db init_hdl_search_path $search_path
 
-# Read the SystemVerilog files in dependency order
-# Note: defs_pkg.sv must be read first!
+puts "--- Reading RTL ---"
+
 read_hdl -sv {
     defs_pkg.sv
     clock_gate_stub.sv
@@ -42,32 +63,50 @@ read_hdl -sv {
 # 3. Elaborate Top Module
 # -------------------------------------------------------------------------
 set top_module "top_decoder_synth"
+
+puts "--- Elaborating $top_module ---"
 elaborate $top_module
 
-# Check for any unresolved references
+check_design
 check_design -unresolved
+
+catch {report_memory > reports/memory_after_elab.rpt}
+report_design > reports/design_after_elab.rpt
 
 # -------------------------------------------------------------------------
 # 4. Apply Constraints
 # -------------------------------------------------------------------------
+puts "--- Reading Constraints ---"
 read_sdc constraints.sdc
 
 # -------------------------------------------------------------------------
-# 5. Synthesize
+# 5. Stepwise Synthesis with Memory Checkpoints
 # -------------------------------------------------------------------------
+
+# ---------------- Generic ----------------
 puts "--- Starting Generic Synthesis ---"
 syn_generic
 
+catch {report_memory > reports/memory_after_generic.rpt}
+write_db outputs/${top_module}_generic.db
+
+# ---------------- Mapping ----------------
 puts "--- Starting Technology Mapping ---"
 syn_map
 
+catch {report_memory > reports/memory_after_map.rpt}
+write_db outputs/${top_module}_mapped_preopt.db
+
+# ---------------- Optimization ----------------
 puts "--- Starting Optimization ---"
 syn_opt
 
+catch {report_memory > reports/memory_after_opt.rpt}
+
 # -------------------------------------------------------------------------
-# 6. Generate Reports
+# 6. Reports
 # -------------------------------------------------------------------------
-file mkdir reports
+puts "--- Generating Reports ---"
 
 report_timing  > reports/timing.rpt
 report_area    > reports/area.rpt
@@ -75,19 +114,20 @@ report_power   > reports/power.rpt
 report_gates   > reports/gates.rpt
 report_qor     > reports/qor.rpt
 
-# -------------------------------------------------------------------------
-# 7. Write Output Data
-# -------------------------------------------------------------------------
-file mkdir outputs
+# Optional: worst paths only (lighter)
+report_timing -max_paths 20 > reports/timing_top20.rpt
 
-# Write the synthesized netlist
+# -------------------------------------------------------------------------
+# 7. Outputs
+# -------------------------------------------------------------------------
+puts "--- Writing Outputs ---"
+
 write_hdl > outputs/${top_module}_mapped.v
-
-# Write the constraints used (SDC)
 write_sdc > outputs/${top_module}_mapped.sdc
+write_db  outputs/${top_module}_mapped.db
 
-# Write the design database (for later loading into Innovus or Genus)
-write_db outputs/${top_module}_mapped.db
+puts "============================================================"
+puts " Synthesis completed successfully!"
+puts "============================================================"
 
-puts "Synthesis completed successfully!"
 quit
