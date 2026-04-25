@@ -5,9 +5,8 @@
 # 1. Setup Libraries and Environment
 # -------------------------------------------------------------------------
 # TODO: FILL IN YOUR TARGET TECHNOLOGY LIBRARY PATHS HERE
-set lib_search_path   { <INSERT_LIBRARY_DIRECTORY_PATH_HERE> }
-set target_library    { <INSERT_TARGET_LIB_FILE_HERE.lib> }
-set lef_files         { <INSERT_LEF_FILES_HERE.lef> }
+set lib_search_path   { /home/redhatacademy19/N_test/cadence_45nm/lib }
+set target_library    { slow_vdd1v0_basicCells.lib }
 
 set_db init_lib_search_path $lib_search_path
 set_db library $target_library
@@ -29,6 +28,7 @@ set_db init_hdl_search_path $search_path
 read_hdl -sv {
     defs_pkg.sv
     clock_gate_stub.sv
+    esram_bram_sim.sv
     esram_macro_stub.sv
     parity_checker.sv
     pe.sv
