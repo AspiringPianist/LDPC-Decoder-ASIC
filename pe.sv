@@ -51,6 +51,7 @@ module pe #(
   wire signed [MIN_W_p:0] mcv_signed_w [0:N_LAYERS-1];
   wire [LVC_W_p-1:0]  lvc_next_w [0:N_LAYERS-1];
   wire [MSG_W_p-1:0]  vn_msg_out_w [0:N_LAYERS-1];
+  wire                c_hat_comb;
 
   genvar L;
   generate
@@ -123,7 +124,7 @@ module pe #(
   wire signed [QV_W_p-1:0] lv_clamped = (lv_tmp > $signed(QV_MAX)) ? QV_MAX :
                                         (lv_tmp < $signed(QV_MIN)) ? QV_MIN :
                                         lv_tmp[QV_W_p-1:0];
-  wire c_hat_comb = lv_clamped[QV_W_p-1];
+  assign c_hat_comb = lv_clamped[QV_W_p-1];
 
   // ---------------------------------------------------------------
   // Per-layer Lvc_new = Lv - mcv[layer], sign-magnitude conversion
