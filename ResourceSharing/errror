@@ -1,133 +1,13 @@
-# synth_oom_safe.tcl
-# Cadence Genus Synthesis Script (OOM-Resistant Version)
-
-# -------------------------------------------------------------------------
-# 0. Session / Logging
-# -------------------------------------------------------------------------
-puts "============================================================"
-puts " Genus OOM-Safe Synthesis Run"
-puts "============================================================"
-
-file mkdir reports
-file mkdir outputs
-file mkdir logs
-
-# -------------------------------------------------------------------------
-# 1. Setup Libraries and Environment
-# -------------------------------------------------------------------------
-set lib_search_path   { /home/redhatacademy19/N_test/cadence_45nm/lib }
-set target_library    { slow_vdd1v0_basicCells.lib }
-
-set_db init_lib_search_path $lib_search_path
-set_db library $target_library
-
-# ---------------- OOM PREVENTION SETTINGS ----------------
-# Limit CPU threads (more threads = more memory replication)
-set_db max_cpus 4
-
-# Preserve hierarchy (avoid flatten explosion)
-set_db auto_ungroup none
-
-# Keep effort conservative
-set_db syn_generic_effort low
-set_db syn_map_effort     low
-set_db syn_opt_effort     low
-
-# Disable aggressive options if enabled by defaults
-catch {set_db optimize_constant_0_flops false}
-catch {set_db optimize_constant_1_flops false}
-catch {set_db delete_unloaded_seqs false}
-
-# -------------------------------------------------------------------------
-# 2. Read RTL
-# -------------------------------------------------------------------------
-set search_path "."
-set_db init_hdl_search_path $search_path
-
-puts "--- Reading RTL ---"
-
-read_hdl -sv {
     defs_pkg.sv
     clock_gate_stub.sv
     esram_bram_sim.sv
     esram_macro_stub.sv
     parity_checker.sv
     pe.sv
-    router.sv
-    global_control.sv
-    column_slice.sv
-    top_decoder_synth.sv
 }
-
-# -------------------------------------------------------------------------
-# 3. Elaborate Top Module
-# -------------------------------------------------------------------------
-set top_module "top_decoder_synth"
-
-puts "--- Elaborating $top_module ---"
-elaborate $top_module
-
-check_design
-check_design -unresolved
-
-catch {report_memory > reports/memory_after_elab.rpt}
-report_design > reports/design_after_elab.rpt
-
-# -------------------------------------------------------------------------
-# 4. Apply Constraints
-# -------------------------------------------------------------------------
-puts "--- Reading Constraints ---"
-read_sdc constraints.sdc
-
-# -------------------------------------------------------------------------
-# 5. Stepwise Synthesis with Memory Checkpoints
-# -------------------------------------------------------------------------
-
-# ---------------- Generic ----------------
-puts "--- Starting Generic Synthesis ---"
-syn_generic
-
-catch {report_memory > reports/memory_after_generic.rpt}
-write_db outputs/${top_module}_generic.db
-
-# ---------------- Mapping ----------------
-puts "--- Starting Technology Mapping ---"
-syn_map
-
-catch {report_memory > reports/memory_after_map.rpt}
-write_db outputs/${top_module}_mapped_preopt.db
-
-# ---------------- Optimization ----------------
-puts "--- Starting Optimization ---"
-syn_opt
-
-catch {report_memory > reports/memory_after_opt.rpt}
-
-# -------------------------------------------------------------------------
-# 6. Reports
-# -------------------------------------------------------------------------
-puts "--- Generating Reports ---"
-
-report_timing  > reports/timing.rpt
-report_area    > reports/area.rpt
-report_power   > reports/power.rpt
-report_gates   > reports/gates.rpt
-report_qor     > reports/qor.rpt
-
-# Optional: worst paths only (lighter)
-report_timing -max_paths 20 > reports/timing_top20.rpt
-
-# -------------------------------------------------------------------------
-# 7. Outputs
-# -------------------------------------------------------------------------
-puts "--- Writing Outputs ---"
-
-write_hdl > outputs/${top_module}_mapped.v
-write_sdc > outputs/${top_module}_mapped.sdc
-write_db  outputs/${top_module}_mapped.db
-
-puts "============================================================"
-puts " Synthesis completed successfully!"
-puts "============================================================"
-
-quit
+  wire c_hat_comb = lv_clamped[QV_W_p-1];
+                  |
+Error   : Redeclared variable. [VLOGPT-22] [read_hdl]
+        : Redeclaration of non-interface variable 'c_hat_comb' in file 'pe.sv' on line 126, column 19.
+        : A variable cannot be redeclared in the same scope. Check the reported RTL file and remove duplicate declarations.
+#@ End verbose source ./synth.tcl
